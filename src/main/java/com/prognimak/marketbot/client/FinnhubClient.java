@@ -7,7 +7,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 
 @Component
-public class FinnhubClient {
+public class FinnhubClient implements MarketDataProvider {
 
     private final WebClient webClient;
     private final AppProperties properties;
