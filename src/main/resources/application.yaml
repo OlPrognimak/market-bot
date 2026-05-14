@@ -1,0 +1,29 @@
+spring:
+  application:
+    name: market-bot
+
+market-bot:
+  finnhub-api-key: ${FINNHUB_API_KEY:d828s6hr01qmgc0f4o0gd828s6hr01qmgc0f4o10}
+  telegram-bot-token: ${TELEGRAM_BOT_TOKEN:8881842070:AAH_NR_uyBu1QQQCcCKohyGILvBgYlL3eRM}
+  telegram-chat-id: ${TELEGRAM_CHAT_ID:5185296289}
+
+  watchlist:
+    - AMAT
+    - ARM
+    - ASML
+    - AVGO
+    - NVDA
+    - AMD
+    - MU
+    - OUST
+    - QCOM
+    - ORCL
+    - SCCO
+    - SGML
+    - SNDK
+    - LIDR
+    - NVTS
+
+  drop-alert-percent: -0.5
+  rise-alert-percent: 0.5
+  poll-interval-ms: 30000
