@@ -1,0 +1,12 @@
+target/*
+!target/*.jar
+.git/
+.idea/
+.mvn/
+*.iml
+*.iws
+*.ipr
+.DS_Store
+HELP.md
+mvnw
+mvnw.cmd
