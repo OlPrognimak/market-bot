@@ -13,6 +13,7 @@ public record AppProperties(
         Map<String, String> watchlist,
         double dropAlertPercent,
         double riseAlertPercent,
-        long pollIntervalMs
+        long pollIntervalMs,
+        double maximalDeltaPrice
 
 ) {}

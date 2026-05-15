@@ -1,12 +1,17 @@
 spring:
   application:
     name: market-bot
+  main:
+    web-application-type: none
+  docker:
+    compose:
+      enabled: false
 
 market-bot:
-  finnhub-api-key: ${FINNHUB_API_KEY:d828s6hr01qmgc0f4o0gd828s6hr01qmgc0f4o10}
-  telegram-bot-token: ${TELEGRAM_BOT_TOKEN:8881842070:AAH_NR_uyBu1QQQCcCKohyGILvBgYlL3eRM}
-  telegram-chat-id: ${TELEGRAM_CHAT_ID:5185296289}
-  twelve-data-api-key: {TWELVE_API_KEY:$15e7ca3779dc4ce993b9b6ff4534a49a}
+  finnhub-api-key: ${FINNHUB_API_KEY:xxxx}
+  telegram-bot-token: ${TELEGRAM_BOT_TOKEN:xxx}
+  telegram-chat-id: ${TELEGRAM_CHAT_ID:11111111}
+  twelve-data-api-key: ${TWELVE_API_KEY:$4k24k24k23kl4}
 
   watchlist:
     # =========================
@@ -21,14 +26,14 @@ market-bot:
     #BLK: BlackRock
     #GOOGL: Google
     #IBM: IBM
-    #INTC: Intel
+    INTC: Intel
     LITE: Lumentum Holdings
-    #MCHP: Microchip Technology
+    MCHP: Microchip Technology
     #MSFT: Microsoft
     MU: Micron Technology
     NVDA: NVIDIA
     NVTS: Navitas Semiconductor
-    #ORCL: Oracle
+    ORCL: Oracle
     OUST: Ouster
     #PLTR: Palantir Technologies
     QCOM: Qualcomm
@@ -36,6 +41,7 @@ market-bot:
     IONQ: IonQ Quantum Computers
     QUBT: Quantum Computing Inc
     #TSM: Taiwan Semiconductor Manufacturing Company
+    RKLB: Rocket Lab
 
     # =========================
     # USA - AI / Robotics / Biotech
@@ -52,8 +58,8 @@ market-bot:
     CENX: Century Aluminum
     EXK: Endeavour Silver
     LAC: Lithium Americas
-    MP: MP Materials
-    NEM: Newmont
+    #MP: MP Materials
+    #NEM: Newmont
     #PAAS: Pan American Silver
     SCCO: Southern Copper
     SGML: Sigma Lithium
@@ -63,7 +69,7 @@ market-bot:
     # =========================
     # USA - Energy / Utilities
     # =========================
-    #CVX: Chevron
+    CVX: Chevron
     #NRGV: Energy Vault
     #SHEL: Shell
     #VST: Vistra
@@ -108,22 +114,24 @@ market-bot:
     UNH: UnitedHealth Group
 
     # =====================================================
-    # EUROPE - Use exchange suffixes for Finnhub
+    # EUROPE - Use exchange suffixes for Yahoo
     # =====================================================
-    #ABB: ABB
-    #AIR: Airbus
-    #BMW.DE: BMW
+    ABB.ST: ABB
+    ABBN.SW: ABJ ABB
+    ROG.SW: Roche Holding AG
+    AIR.PA: Airbus
+    BMW.DE: BMW
     ASML: ASML Holding
-    #BAYN: Bayer
-    #BMW: BMW
-    #ENR: Siemens Energy
+    ASML.AS: ASML Holding
+    BAYN.DE: Bayer
+    ENR.DE: Siemens Energy AG
+    SIE.DE: Siemens AG
     NVS: Novartis AG US
-    #NOT: Novartis AG EU
-    #NVO: Novo Nordisk
+    NOVN.SW: Novartis Swiss
     #RHM.DE: Rheinmetall
-    #SIE: Siemens
     STM: STMicroelectronics
 
-  drop-alert-percent: -0.5
-  rise-alert-percent: 0.5
+  drop-alert-percent: -0.4
+  rise-alert-percent: 0.4
   poll-interval-ms: 30000
+  maximal-delta-price: 0.8

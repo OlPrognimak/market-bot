@@ -2,6 +2,7 @@ package com.prognimak.marketbot.client;
 
 import com.prognimak.marketbot.config.AppProperties;
 import com.prognimak.marketbot.model.Quote;
+import com.prognimak.marketbot.model.TwelveDataResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;

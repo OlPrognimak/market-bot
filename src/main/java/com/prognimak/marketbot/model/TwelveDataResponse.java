@@ -1,4 +1,4 @@
-package com.prognimak.marketbot.client;
+package com.prognimak.marketbot.model;
 
 public record TwelveDataResponse(
 

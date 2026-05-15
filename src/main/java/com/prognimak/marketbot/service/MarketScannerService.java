@@ -2,7 +2,6 @@ package com.prognimak.marketbot.service;
 
 import com.prognimak.marketbot.client.FinnhubClient;
 import com.prognimak.marketbot.client.TelegramClient;
-import com.prognimak.marketbot.client.TwellveClient;
 import com.prognimak.marketbot.client.YahooFinanceClient;
 import com.prognimak.marketbot.config.AppProperties;
 import com.prognimak.marketbot.model.Quote;
@@ -12,13 +11,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
 
 @Service
 @Slf4j
@@ -26,24 +26,31 @@ import java.util.concurrent.ConcurrentHashMap;
 public class MarketScannerService {
 
     private final FinnhubClient finnhubClient;
-    private final TwellveClient twellveClient;
+    private final YahooFinanceClient yahooFinanceClient;
     private final TelegramClient telegramClient;
     private final AppProperties properties;
 
-    private static final double MAX_DELTA = 0.8;
+    private static final Set<String> YAHOO_EU_SUFFIXES = Set.of(
+            ".AS", ".AT", ".BE", ".BR", ".CO", ".DE", ".DU", ".F",
+            ".HE", ".HM", ".IC", ".IR", ".L", ".LS", ".MC", ".MI",
+            ".MU", ".OL", ".PA", ".PR", ".SG", ".ST", ".SW", ".VI",
+            ".WA"
+    );
 
     private final Map<String, Double> lastPercentMap = new ConcurrentHashMap<>();
     private final Map<String, Deque<Double>> deltaHistoryMap = new ConcurrentHashMap<>();
 
     @SneakyThrows
-    private  Quote getQuote(String symbol) {
+    private  void getQuote(String symbol, AtomicReference<Quote>  atomicQuote) {
         try {
-            return finnhubClient.getQuote(symbol);
+            Quote  quote = getQuoteForProvider(symbol);
+            atomicQuote.set(quote);
         }catch(Exception e) {
-            if (e.getMessage().contains("529"))
-            log.error("Error getting quote for symbol {}", symbol, e);
-            Thread.currentThread().sleep(5000);
-            return getQuote(symbol);
+            //if (e.getMessage().contains("529")) {
+                log.error("Error getting quote for symbol {}", symbol, e);
+                Thread.currentThread().sleep(10000);
+                getQuote(symbol, atomicQuote);
+            //}
         }
     }
 
@@ -56,16 +63,10 @@ public class MarketScannerService {
             String companyName = entry.getValue();
 
             try {
+                AtomicReference<Quote>  atomicQuote = new AtomicReference<>();
+                getQuote(symbol, atomicQuote);
+                Quote quote = atomicQuote.get();
 
-                Quote quote;
-                if(symbol.equals("BMW.DE") || symbol.equals("RHM.DE")) {
-                   quote = twellveClient.getQuote(symbol);
-                   // continue;
-                } else {
-                    quote = finnhubClient.getQuote(symbol);
-                }
-
-                Thread.currentThread().sleep(500);
 
                 double currentPercent = quote.percentChange();
                 Double lastPercent = lastPercentMap.get(symbol);
@@ -86,7 +87,7 @@ public class MarketScannerService {
 
                 history.addLast(delta);
 
-                if (history.size() > 5) {
+                if (history.size() > 8) {
                     history.removeFirst();
                 }
 
@@ -104,8 +105,8 @@ public class MarketScannerService {
 
                 String reset = "\u001B[0m";
 
-                boolean exceedsMovementThreshold = Math.abs(rollingDelta) >= MAX_DELTA;
-                boolean exceedsDeltaThreshold = Math.abs(delta) >= MAX_DELTA;
+                boolean exceedsMovementThreshold = Math.abs(rollingDelta) >= properties.maximalDeltaPrice();
+                boolean exceedsDeltaThreshold = Math.abs(delta) >= properties.maximalDeltaPrice();
 
                 boolean exceedsAbsoluteThreshold =
                         currentPercent <= properties.dropAlertPercent()
@@ -114,9 +115,7 @@ public class MarketScannerService {
 
 
                 if (exceedsMovementThreshold && exceedsAbsoluteThreshold) {
-                    telegramClient.sendMessage(
-                            buildMessage(quote, companyName, delta, rollingDelta)
-                    );
+
                     System.out.printf(
                             color +
                                     "%s (%s) current: %.2f%% | previous: %.2f%% | delta: %.2f%% | rolling 5: %.2f%%"
@@ -129,11 +128,14 @@ public class MarketScannerService {
                             delta,
                             rollingDelta
                     );
+                    telegramClient.sendMessage(
+                            buildMessage(quote, companyName, delta, rollingDelta)
+                    );
                     if (!history.isEmpty()) {
                         history.clear();
                     }
                 }
-                Thread.sleep(100);
+                Thread.sleep(500);
             } catch (Exception e) {
                 System.err.println(
                         "Error checking "
@@ -189,5 +191,17 @@ public class MarketScannerService {
                 quote.open(),
                 quote.previousClose()
         );
+    }
+
+    private Quote getQuoteForProvider(String symbol) {
+        if (isYahooEuropeSymbol(symbol)) {
+            return yahooFinanceClient.getQuote(symbol);
+        }
+
+        return yahooFinanceClient.getQuote(symbol);
+    }
+
+    private boolean isYahooEuropeSymbol(String symbol) {
+        return YAHOO_EU_SUFFIXES.stream().anyMatch(symbol::endsWith);
     }
 }
