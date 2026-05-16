@@ -53,12 +53,6 @@
         </dependency>
 
         <dependency>
-            <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-spring-boot-docker-compose</artifactId>
-            <scope>runtime</scope>
-            <optional>true</optional>
-        </dependency>
-        <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
             <optional>true</optional>
@@ -194,6 +188,24 @@
                                         <argument>-t</argument>
                                         <argument>${docker.image.name}:${docker.image.tag}</argument>
                                         <argument>.</argument>
+                                    </arguments>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>docker-deploy</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>exec</goal>
+                                </goals>
+                                <configuration>
+                                    <executable>docker</executable>
+                                    <environmentVariables>
+                                        <MARKET_BOT_IMAGE_TAG>${docker.image.tag}</MARKET_BOT_IMAGE_TAG>
+                                    </environmentVariables>
+                                    <arguments>
+                                        <argument>compose</argument>
+                                        <argument>up</argument>
+                                        <argument>-d</argument>
                                     </arguments>
                                 </configuration>
                             </execution>

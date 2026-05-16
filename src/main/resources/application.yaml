@@ -8,10 +8,10 @@ spring:
       enabled: false
 
 market-bot:
-  finnhub-api-key: ${FINNHUB_API_KEY:xxxx}
+  #finnhub-api-key: ${FINNHUB_API_KEY:xxxx}
+  #twelve-data-api-key: ${TWELVE_API_KEY:$4k24k24k23kl4}
   telegram-bot-token: ${TELEGRAM_BOT_TOKEN:xxx}
   telegram-chat-id: ${TELEGRAM_CHAT_ID:11111111}
-  twelve-data-api-key: ${TWELVE_API_KEY:$4k24k24k23kl4}
 
   watchlist:
     # =========================
@@ -131,7 +131,18 @@ market-bot:
     #RHM.DE: Rheinmetall
     STM: STMicroelectronics
 
+  # Send a DOWN alert only when the current daily change is less than or equal to this value.
+  # Example: -0.4 means the share must be down at least 0.4% for the day.
   drop-alert-percent: -0.4
+
+  # Send an UP alert only when the current daily change is greater than or equal to this value.
+  # Example: 0.4 means the share must be up at least 0.4% for the day.
   rise-alert-percent: 0.4
+
+  # Delay between market scans in milliseconds.
+  # Example: 30000 means the app checks the watchlist every 30 seconds.
   poll-interval-ms: 30000
+
+  # Minimum accumulated movement required before an alert can be sent.
+  # Example: 0.8 means the rolling price movement must be at least 0.8% up or down.
   maximal-delta-price: 0.8

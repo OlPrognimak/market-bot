@@ -2,7 +2,7 @@
 
 Market Bot is a Spring Boot command-line application that monitors configured stock market symbols and sends Telegram alerts when share prices move enough to match the configured alert rules.
 
-The application runs without an HTTP server. It starts a scheduled scanner, reads market quotes, compares every symbol with the previously observed value, and posts an alert message to a configured Telegram chat when the movement is significant.
+The application runs without an HTTP server because `spring.main.web-application-type` is set to `none`. It starts a scheduled scanner, reads market quotes, compares every symbol with the previously observed value, and posts an alert message to a configured Telegram chat when the movement is significant.
 
 ## How It Works
 
@@ -24,16 +24,25 @@ After an alert is sent, the rolling history for that symbol is cleared so the ne
 
 The current scanner implementation uses Yahoo Finance quote data. The project also contains clients for Finnhub and Twelve Data, and their API keys are present in the configuration.
 
+Yahoo Finance is currently used because other providers are limited for this use case on free plans. Some free APIs have very low request limits, and some do not cover the European market symbols needed by the watchlist.
+
 ## Configuration
 
-Main configuration is under the `market-bot` prefix in `src/main/resources/application.yaml`.
+Main configuration is in `src/main/resources/application.yaml`. Spring Boot is configured as a non-web application, and the bot settings are under the `market-bot` prefix.
 
 ```yaml
+spring:
+  main:
+    web-application-type: none
+  docker:
+    compose:
+      enabled: false
+
 market-bot:
   finnhub-api-key: ${FINNHUB_API_KEY:xxxx}
   telegram-bot-token: ${TELEGRAM_BOT_TOKEN:xxx}
   telegram-chat-id: ${TELEGRAM_CHAT_ID:11111111}
-  twelve-data-api-key: ${TWELVE_API_KEY:}
+  twelve-data-api-key: ${TWELVE_API_KEY:$4k24k24k23kl4}
 
   watchlist:
     AAPL: Apple
@@ -103,6 +112,8 @@ Create the executable JAR:
 ./mvnw clean package
 ```
 
+This is the normal application build. It creates the Spring Boot executable JAR only and does not build or deploy Docker resources.
+
 The generated JAR is created under `target/`, for example:
 
 ```text
@@ -141,16 +152,31 @@ java -jar target/market-bot-0.0.1-SNAPSHOT.jar \
 
 ## Docker
 
-Build the JAR first:
+Docker image build and deployment are tied to the Maven `docker` profile. Without this profile, Maven works as a normal Spring Boot application build and does not call Docker.
 
-```bash
-./mvnw clean package
-```
-
-Then build and run the container with Docker Compose:
+Prepare environment variables first:
 
 ```bash
 cp .env.example .env
 # edit .env with real values
-docker compose up --build
 ```
+
+Build the JAR, build the Docker image, and deploy the container:
+
+```bash
+./mvnw clean package -Pdocker
+```
+
+The `docker` profile builds the image:
+
+```text
+market-bot:0.0.1-SNAPSHOT
+```
+
+and then starts the service with:
+
+```bash
+docker compose up -d
+```
+
+`compose.yaml` uses the already built image. It does not build the Docker image by itself.

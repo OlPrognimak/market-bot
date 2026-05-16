@@ -1,11 +1,6 @@
 services:
   market-bot:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        JAR_FILE: target/market-bot-0.0.1-SNAPSHOT.jar
-    image: market-bot:${MARKET_BOT_IMAGE_TAG:-latest}
+    image: market-bot:${MARKET_BOT_IMAGE_TAG:-0.0.1-SNAPSHOT}
     restart: unless-stopped
     environment:
       FINNHUB_API_KEY: ${FINNHUB_API_KEY}
