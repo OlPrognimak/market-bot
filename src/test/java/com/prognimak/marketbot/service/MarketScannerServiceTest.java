@@ -115,25 +115,31 @@ class MarketScannerServiceTest {
     @Test
     void scanMarketMarksCurrentAndHistoryAsSentWhenRollingMovementExceedsThreshold() {
         Quote firstQuote = quote("AAPL", 1.0);
-        Quote secondQuote = quote("AAPL", 2.0);
+        Quote secondQuote = quote("AAPL", 1.1);
         QuoteEntity firstEntity = entity("AAPL", 1.0);
-        QuoteEntity secondEntity = entity("AAPL", 2.0);
-        QuoteEntity persisted = entity("AAPL", 1.0);
+        QuoteEntity secondEntity = entity("AAPL", 1.1);
+        QuoteEntity latestPersisted = entity("AAPL", 1.0);
+        QuoteEntity olderPersisted = entity("AAPL", 0.0);
+        List<QuoteEntity> persistedHistoryNewestFirst = List.of(latestPersisted, olderPersisted);
 
         when(yahooFinanceClient.getQuote("AAPL")).thenReturn(firstQuote, secondQuote);
         when(quoteMapper.toEntity(firstQuote)).thenReturn(firstEntity);
         when(quoteMapper.toEntity(secondQuote)).thenReturn(secondEntity);
         when(quoteRepository.findBySymbolAndSendIsFalseOrderByIdDesc(eq("AAPL"), any(Pageable.class)))
-                .thenReturn(List.of(persisted));
-        when(quoteMapper.toQuotes(List.of(persisted))).thenReturn(new ArrayList<>(List.of(quote("AAPL", 1.0))));
+                .thenReturn(persistedHistoryNewestFirst);
+        when(quoteMapper.toQuotes(persistedHistoryNewestFirst)).thenReturn(new ArrayList<>(List.of(
+                quote("AAPL", 1.0),
+                quote("AAPL", 0.0)
+        )));
 
         service.scanMarket();
         service.scanMarket();
 
         assertAll(
-                () -> assertEquals(1.0, secondEntity.getDelta(), 0.0001),
+                () -> assertEquals(0.1, secondEntity.getDelta(), 0.0001),
                 () -> assertTrue(secondEntity.isSend()),
-                () -> assertTrue(persisted.isSend())
+                () -> assertTrue(latestPersisted.isSend()),
+                () -> assertTrue(olderPersisted.isSend())
         );
         verify(quoteRepository).save(secondEntity);
 
@@ -143,9 +149,9 @@ class MarketScannerServiceTest {
         assertAll(
                 () -> assertNotNull(messageCaptor.getValue()),
                 () -> assertTrue(normalizedMessage.contains("Apple (AAPL) UP")),
-                () -> assertTrue(normalizedMessage.contains("Day change: 2.00%")),
-                () -> assertTrue(normalizedMessage.contains("Move since last check: 1.00%")),
-                () -> assertTrue(normalizedMessage.contains("Rolling move 5 checks: 1.00%"))
+                () -> assertTrue(normalizedMessage.contains("Day change: 1.10%")),
+                () -> assertTrue(normalizedMessage.contains("Move since last check: 0.10%")),
+                () -> assertTrue(normalizedMessage.contains("Rolling move 5 checks: 1.10%"))
         );
         verifyNoInteractions(finnhubClient);
     }

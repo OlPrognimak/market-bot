@@ -103,23 +103,31 @@ private static final Set<String> YAHOO_EU_SUFFIXES = Set.of(
                 List<QuoteEntity> lastPersistedChanges =
                         quoteRepository.findBySymbolAndSendIsFalseOrderByIdDesc(
                                 symbol, PageRequest.of(0, MAX_ROLLING_SIZE));
-                double delta = quote.percentChange() - lastPersistedChanges.get(0).getPercentChange();
+                if (lastPersistedChanges.isEmpty()) {
+                    QuoteEntity entity = quoteMapper.toEntity(quote);
+                    entity.setDelta(quote.percentChange());
+                    quoteRepository.save(entity);
+                    continue;
+                }
+
+                QuoteEntity latestPersistedChange = lastPersistedChanges.getFirst();
 
                 List<Quote> quotes = quoteMapper.toQuotes(lastPersistedChanges);
+                Collections.reverse(quotes);
                 quotes.add(quote);
 
                 double rollingDeltaSum = calculateRollingChanges(quotes);
 
 
-                String color = delta < 0?TEXT_COLOR_RED :TEXT_COLOR_NON;
+                String color = rollingDeltaSum < 0?TEXT_COLOR_RED :TEXT_COLOR_NON;
                 if(!color.equals(TEXT_COLOR_RED)) {
-                    color = delta > 0 ? TEXT_COLOR_BLUE : TEXT_COLOR_NON;
+                    color = rollingDeltaSum > 0 ? TEXT_COLOR_BLUE : TEXT_COLOR_NON;
                 }
                 boolean exceedsMovementThreshold = Math.abs(rollingDeltaSum) >= properties.maximalDeltaPrice();
 
 
                 QuoteEntity quoteEntity = quoteMapper.toEntity(quote);
-                delta = quote.percentChange() - lastPersistedChanges.get(0).getPercentChange();
+                double delta = quote.percentChange() - latestPersistedChange.getPercentChange();
                 quoteEntity.setDelta(delta);
                 quoteRepository.save(quoteEntity);
 
@@ -169,8 +177,8 @@ private static final Set<String> YAHOO_EU_SUFFIXES = Set.of(
             double delta,
             double rollingDelta
     ) {
-        String icon = delta >= 0 ? "🟢" : "🔴";
-        String direction = delta >= 0 ? "UP" : "DOWN";
+        String icon = rollingDelta >= 0 ? "🟢" : "🔴";
+        String direction = rollingDelta >= 0 ? "UP" : "DOWN";
 
         String timestamp = LocalDateTime.now()
                 .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
