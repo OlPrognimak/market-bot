@@ -1,5 +1,8 @@
 package com.prognimak.marketbot.model;
 
+import lombok.Builder;
+
+@Builder
 public record Quote(
         String symbol,
         double current,

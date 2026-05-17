@@ -3,6 +3,7 @@ package com.prognimak.marketbot.client;
 
 import com.prognimak.marketbot.model.Quote;
 import com.prognimak.marketbot.model.YahooChartResponse;
+import com.prognimak.marketbot.util.Utils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -10,6 +11,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import java.util.List;
+
+import static com.prognimak.marketbot.util.Utils.roundDouble;
 
 @Service
 @RequiredArgsConstructor
@@ -74,13 +77,13 @@ public class YahooFinanceClient implements MarketDataProvider {
 
         return new Quote(
                 meta.symbol() == null ? requestedSymbol : meta.symbol(),
-                current,
-                change,
-                percentChange,
-                valueAtOrFallback(quote.high(), latestIndex, current),
-                valueAtOrFallback(quote.low(), latestIndex, current),
-                valueAtOrFallback(quote.open(), latestIndex, current),
-                previousClose
+                roundDouble(current, 2),
+                roundDouble(change, 2),
+                roundDouble(percentChange, 2),
+                roundDouble(valueAtOrFallback(quote.high(), latestIndex, current), 2),
+                roundDouble(valueAtOrFallback(quote.low(), latestIndex, current), 2),
+                roundDouble(valueAtOrFallback(quote.open(), latestIndex, current), 2),
+                roundDouble(previousClose, 2)
         );
     }
 
