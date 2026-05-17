@@ -2,7 +2,7 @@
 
 Market Bot is a Spring Boot command-line application that monitors configured stock market symbols and sends Telegram alerts when share prices move enough to match the configured alert rules.
 
-The application runs without an HTTP server because `spring.main.web-application-type` is set to `none`. It starts a scheduled scanner, reads market quotes, compares every symbol with the previously observed value, and posts an alert message to a configured Telegram chat when the movement is significant.
+The application runs without an HTTP server because `spring.main.web-application-type` is set to `none`. It starts a scheduled scanner, reads market quotes, stores quote history in PostgreSQL, compares every symbol with previous values, and posts an alert message to a configured Telegram chat when the movement is significant.
 
 ## How It Works
 
@@ -11,16 +11,12 @@ On startup, Market Bot loads configuration from `src/main/resources/application.
 For each symbol in `market-bot.watchlist`, the application:
 
 1. Requests the current quote data.
-2. Stores the first observed daily percentage change as the initial baseline.
-3. On the next scans, compares the current daily percentage change with the previous value.
-4. Adds the delta to a short rolling history for that symbol.
-5. Sends a Telegram alert when both conditions are true:
-   - the absolute rolling movement is greater than or equal to `market-bot.maximal-delta-price`;
-   - the current daily percentage change is outside the configured absolute thresholds:
-     - less than or equal to `market-bot.drop-alert-percent`, or
-     - greater than or equal to `market-bot.rise-alert-percent`.
+2. Stores the quote in PostgreSQL.
+3. Uses recent unsent quote records for the same symbol to calculate the latest delta and rolling movement.
+4. Marks persisted quote records as sent after an alert or after the rolling window is processed.
+5. Sends a Telegram alert when the absolute rolling movement is greater than or equal to `market-bot.maximal-delta-price`.
 
-After an alert is sent, the rolling history for that symbol is cleared so the next alert requires a new movement sequence.
+After an alert is sent, the current quote and the recent quote history used for the alert are marked as sent.
 
 The current scanner implementation uses Yahoo Finance quote data. The project also contains clients for Finnhub and Twelve Data, and their API keys are present in the configuration.
 
@@ -28,33 +24,65 @@ Yahoo Finance is currently used because other providers are limited for this use
 
 ## Configuration
 
-Main configuration is in `src/main/resources/application.yaml`. Spring Boot is configured as a non-web application, and the bot settings are under the `market-bot` prefix.
+Main configuration is in `src/main/resources/application.yaml`. Spring Boot is configured as a non-web application, database settings are under `app.datasource` and `spring.jpa`, and the bot settings are under the `market-bot` prefix.
 
 ```yaml
+app:
+  datasource:
+    url: jdbc:postgresql://localhost:5455/test_db
+    username: test
+    password: test
+    configuration:
+
 spring:
   main:
     web-application-type: none
   docker:
     compose:
       enabled: false
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        default_schema: marketbot
+        connection:
+          pool_size: 30
 
 market-bot:
-  finnhub-api-key: ${FINNHUB_API_KEY:xxxx}
   telegram-bot-token: ${TELEGRAM_BOT_TOKEN:xxx}
   telegram-chat-id: ${TELEGRAM_CHAT_ID:11111111}
-  twelve-data-api-key: ${TWELVE_API_KEY:$4k24k24k23kl4}
 
   watchlist:
-    AAPL: Apple
-    AMD: Advanced Micro Devices
-    NVDA: NVIDIA
-    BMW.DE: BMW
+    ABB.ST: ABB
 
   drop-alert-percent: -0.4
   rise-alert-percent: 0.4
-  poll-interval-ms: 30000
+  poll-interval-ms: 10000
   maximal-delta-price: 0.8
 ```
+
+### Database
+
+The application uses PostgreSQL through Spring Data JPA and HikariCP. The datasource is configured with the custom `app.datasource` prefix and connected to Spring Boot in `AppConfiguration`.
+
+| Property | Description |
+| --- | --- |
+| `app.datasource.url` | PostgreSQL JDBC URL. Example: `jdbc:postgresql://localhost:5455/test_db`. |
+| `app.datasource.username` | Database user. |
+| `app.datasource.password` | Database password. |
+| `app.datasource.configuration` | Prefix reserved for Hikari-specific datasource settings. |
+| `spring.jpa.hibernate.ddl-auto` | Hibernate schema action. `update` creates or updates tables for mapped entities. |
+| `spring.jpa.properties.hibernate.default_schema` | PostgreSQL schema used by Hibernate. Current value: `marketbot`. |
+| `spring.jpa.properties.hibernate.connection.pool_size` | Hibernate connection pool setting. The configured Hikari datasource also sets maximum pool size in code. |
+
+The PostgreSQL database and schema must exist before the application starts. Hibernate can create/update tables, but it does not create the database itself. If `default_schema` is `marketbot`, create the schema first:
+
+```sql
+CREATE SCHEMA IF NOT EXISTS marketbot;
+```
+
+The current persisted entity is `QuoteEntity`. It stores symbol, price values, percentage change, calculated delta, and a `send` flag used to avoid repeatedly processing the same quote records.
 
 ### Environment Variables
 
