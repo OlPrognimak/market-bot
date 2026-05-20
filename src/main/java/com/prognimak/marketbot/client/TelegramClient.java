@@ -18,6 +18,13 @@ public class TelegramClient {
     }
 
     public void sendMessage(String text) {
+        if (properties.telegramBotToken() == null || properties.telegramBotToken().isBlank()) {
+            throw new IllegalStateException("Telegram bot token is not configured");
+        }
+        if (properties.telegramChatId() == null || properties.telegramChatId().isBlank()) {
+            throw new IllegalStateException("Telegram chat id is not configured");
+        }
+
         webClient.post()
                 .uri("/bot{token}/sendMessage", properties.telegramBotToken())
                 .bodyValue(new TelegramMessage(

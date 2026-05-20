@@ -1,8 +1,8 @@
 HELP.md
 target/
+node_modules/
+.next/
 .env
-watchlist.local.*
-config/watchlist.*
 .mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
@@ -35,7 +35,3 @@ build/
 
 ### VS Code ###
 .vscode/
-watchlist.yaml
-FAST_VISUALIZATION_CONCEPT.md
-OPENAI_NEWS_MONITORING.md
-

@@ -4,6 +4,9 @@ import com.prognimak.marketbot.client.FinnhubClient;
 import com.prognimak.marketbot.client.TelegramClient;
 import com.prognimak.marketbot.client.YahooFinanceClient;
 import com.prognimak.marketbot.config.AppProperties;
+import com.prognimak.marketbot.dashboard.model.MarketDirection;
+import com.prognimak.marketbot.dashboard.model.MarketScanResult;
+import com.prognimak.marketbot.dashboard.service.MarketDashboardService;
 import com.prognimak.marketbot.entity.QuoteEntity;
 import com.prognimak.marketbot.mapper.QuoteMapper;
 import com.prognimak.marketbot.model.Quote;
@@ -15,7 +18,9 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -35,6 +40,8 @@ public class MarketScannerService {
     private final TelegramClient telegramClient;
     private final AppProperties properties;
     private final QuoteMapper quoteMapper;
+    private final MarketDashboardService marketDashboardService;
+    private final WatchlistService watchlistService;
 
     private static final String TEXT_COLOR_RED = "\u001B[31m";
     private static final String TEXT_COLOR_BLUE = "\u001B[34m";
@@ -58,6 +65,9 @@ private static final Set<String> YAHOO_EU_SUFFIXES = Set.of(
         try {
             Quote  quote = getQuoteForProvider(symbol);
             atomicQuote.set(quote);
+        } catch (WebClientResponseException.NotFound e) {
+            // TODO: Track repeated 404s and temporarily disable unavailable symbols instead of logging every scan.
+            throw new IllegalArgumentException("Quote provider returned 404 for symbol " + symbol, e);
         }catch(Exception e) {
             //if (e.getMessage().contains("529")) {
                 log.error("Error getting quote for symbol {}", symbol, e);
@@ -67,10 +77,21 @@ private static final Set<String> YAHOO_EU_SUFFIXES = Set.of(
         }
     }
 
+    /**
+     * Scheduler scan shares markets every {@code fixedDelayString} and send message to user
+     */
     @Scheduled(fixedDelayString = "${market-bot.poll-interval-ms}")
     public void scanMarket() {
         log.info("Start scanning market...");
-        for (Map.Entry<String, String> entry : properties.watchlist().entrySet()) {
+        Instant scanStartedAt = Instant.now();
+        Map<String, String> watchlist = watchlistService.watchlist();
+        if (watchlist.isEmpty()) {
+            log.warn("No symbols configured for market scan.");
+            marketDashboardService.publishSnapshot(scanStartedAt);
+            return;
+        }
+
+        for (Map.Entry<String, String> entry : watchlist.entrySet()) {
 
             String symbol = entry.getKey();
             String companyName = entry.getValue();
@@ -89,6 +110,7 @@ private static final Set<String> YAHOO_EU_SUFFIXES = Set.of(
                     QuoteEntity entity = quoteMapper.toEntity(quote);
                     entity.setDelta(quote.percentChange());
                     quoteRepository.save(entity);
+                    recordDashboardResult(quote, companyName, currentPercent, 0, 0, false, null);
                     continue;
                 }
 
@@ -107,6 +129,7 @@ private static final Set<String> YAHOO_EU_SUFFIXES = Set.of(
                     QuoteEntity entity = quoteMapper.toEntity(quote);
                     entity.setDelta(quote.percentChange());
                     quoteRepository.save(entity);
+                    recordDashboardResult(quote, companyName, currentPercent, 0, 0, false, null);
                     continue;
                 }
 
@@ -132,6 +155,7 @@ private static final Set<String> YAHOO_EU_SUFFIXES = Set.of(
                 quoteRepository.save(quoteEntity);
 
                 boolean haveSendFlag = false;
+                String messageText = null;
                 if (exceedsMovementThreshold /*exceedsMovementThreshold && exceedsAbsoluteThreshold*/) {
                     System.out.printf(
                             color +
@@ -146,9 +170,8 @@ private static final Set<String> YAHOO_EU_SUFFIXES = Set.of(
                             rollingDeltaSum
                     );
 
-                    telegramClient.sendMessage(
-                            buildMessage(quote, companyName, delta, rollingDeltaSum)
-                    );
+                    messageText = buildMessage(quote, companyName, delta, rollingDeltaSum);
+                    telegramClient.sendMessage(messageText);
                     quoteEntity.setSend(true);
                     lastPersistedChanges.forEach(q -> q.setSend(true));
                     haveSendFlag = true;
@@ -156,6 +179,7 @@ private static final Set<String> YAHOO_EU_SUFFIXES = Set.of(
                         history.clear();
                     }
                 }
+                recordDashboardResult(quote, companyName, latestPersistedChange.getPercentChange(), delta, rollingDeltaSum, haveSendFlag, messageText);
                 if(!haveSendFlag && lastPersistedChanges.size() >=  MAX_ROLLING_SIZE) {
                     //Can be set to true afater send message
                     lastPersistedChanges.stream().filter(
@@ -167,7 +191,48 @@ private static final Set<String> YAHOO_EU_SUFFIXES = Set.of(
                 System.err.println("Error checking " + companyName + " (" + symbol + "): " + e.getMessage());
             }
         }
+        marketDashboardService.publishSnapshot(scanStartedAt);
         log.info("End scanning market...");
+    }
+
+    private void recordDashboardResult(
+            Quote quote,
+            String companyName,
+            double previousPercent,
+            double delta,
+            double rollingDelta,
+            boolean alert,
+            String messageText
+    ) {
+        marketDashboardService.recordResult(new MarketScanResult(
+                quote.symbol(),
+                companyName,
+                quote.percentChange(),
+                previousPercent,
+                delta,
+                rollingDelta,
+                MAX_ROLLING_SIZE,
+                quote.current(),
+                quote.low(),
+                quote.high(),
+                quote.open(),
+                quote.previousClose(),
+                direction(rollingDelta, delta),
+                alert,
+                Instant.now(),
+                messageText
+        ));
+    }
+
+    private MarketDirection direction(double rollingDelta, double delta) {
+        double movement = Math.abs(rollingDelta) >= Math.abs(delta) ? rollingDelta : delta;
+        if (movement > 0) {
+            return MarketDirection.UP;
+        }
+        if (movement < 0) {
+            return MarketDirection.DOWN;
+        }
+        return MarketDirection.NEUTRAL;
     }
 
 

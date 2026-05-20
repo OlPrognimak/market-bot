@@ -52,6 +52,7 @@ spring:
 market-bot:
   telegram-bot-token: ${TELEGRAM_BOT_TOKEN:xxx}
   telegram-chat-id: ${TELEGRAM_CHAT_ID:11111111}
+  watchlist-file: ${MARKET_BOT_WATCHLIST_FILE:classpath:/watchlist.yaml}
 
   watchlist:
     ABB.ST: ABB
@@ -94,12 +95,52 @@ Use environment variables for secrets and deployment-specific values:
 | `TELEGRAM_CHAT_ID` | Telegram chat ID where alerts will be sent. |
 | `FINNHUB_API_KEY` | Finnhub API key. Present in configuration for the Finnhub client. |
 | `TWELVE_API_KEY` | Twelve Data API key. Present in configuration for the Twelve Data client. |
+| `MARKET_BOT_WATCHLIST_FILE` | Optional path to an external watchlist file. If set and readable, it replaces `market-bot.watchlist`. |
 
 An example file is provided in `.env.example`.
 
 ### Watchlist
 
-`market-bot.watchlist` is a map where:
+The scanner can load symbols from an external file. This is the recommended setup for local/private watchlists because the real list can stay out of git.
+
+Configure the file path with:
+
+```yaml
+market-bot:
+  watchlist-file: /absolute/path/to/watchlist.local.yaml
+```
+
+The default value is:
+
+```yaml
+market-bot:
+  watchlist-file: classpath:/watchlist.yaml
+```
+
+This loads [src/main/resources/watchlist.yaml](/Users/alexadmin/Desktop/work/WORK_PROJCTS/market-bot/src/main/resources/watchlist.yaml) when no external path is provided.
+
+or with an environment variable:
+
+```bash
+MARKET_BOT_WATCHLIST_FILE=/absolute/path/to/watchlist.local.yaml
+```
+
+The file is reloaded on every scan, so changing it does not require rebuilding or restarting the app.
+
+Recommended YAML format:
+
+```yaml
+watchlist:
+  # symbol: company name
+  AAPL: Apple
+  NVDA: NVIDIA
+  BMW.DE: BMW
+  ABBN.SW: ABB
+```
+
+The checked-in sample is [src/main/resources/watchlist.yaml](/Users/alexadmin/Desktop/work/WORK_PROJCTS/market-bot/src/main/resources/watchlist.yaml).
+
+`market-bot.watchlist` remains as a fallback map where:
 
 - the key is the market symbol used for quote lookup;
 - the value is the company name displayed in logs and Telegram messages.
@@ -115,6 +156,8 @@ watchlist:
 ```
 
 For non-US shares, use the exchange suffix expected by Yahoo Finance, for example `.DE`, `.PA`, `.SW`, `.ST`, or `.AS`.
+
+Local private watchlist files matching `watchlist.local.*` or `config/watchlist.*` are ignored by git.
 
 ### Alert Thresholds
 
@@ -188,6 +231,19 @@ Prepare environment variables first:
 cp .env.example .env
 # edit .env with real values
 ```
+
+For Docker, `MARKET_BOT_WATCHLIST_FILE` must point to a file inside the container. Mount your private watchlist file when starting the container, for example:
+
+```yaml
+services:
+  market-bot:
+    volumes:
+      - ./config/watchlist.yaml:/app/config/watchlist.yaml:ro
+    environment:
+      MARKET_BOT_WATCHLIST_FILE: /app/config/watchlist.yaml
+```
+
+`compose.yaml` already passes the `MARKET_BOT_WATCHLIST_FILE` environment variable if it is set in `.env`. Add the bind mount that matches your local file location.
 
 Build the JAR, build the Docker image, and deploy the container:
 

@@ -4,6 +4,7 @@ import com.prognimak.marketbot.client.FinnhubClient;
 import com.prognimak.marketbot.client.TelegramClient;
 import com.prognimak.marketbot.client.YahooFinanceClient;
 import com.prognimak.marketbot.config.AppProperties;
+import com.prognimak.marketbot.dashboard.service.MarketDashboardService;
 import com.prognimak.marketbot.entity.QuoteEntity;
 import com.prognimak.marketbot.mapper.QuoteMapper;
 import com.prognimak.marketbot.model.Quote;
@@ -48,6 +49,10 @@ class MarketScannerServiceTest {
     private TelegramClient telegramClient;
     @Mock
     private QuoteMapper quoteMapper;
+    @Mock
+    private MarketDashboardService marketDashboardService;
+    @Mock
+    private WatchlistService watchlistService;
 
     private MarketScannerService service;
 
@@ -59,8 +64,11 @@ class MarketScannerServiceTest {
                 yahooFinanceClient,
                 telegramClient,
                 properties(0.8, Map.of("AAPL", "Apple")),
-                quoteMapper
+                quoteMapper,
+                marketDashboardService,
+                watchlistService
         );
+        when(watchlistService.watchlist()).thenReturn(Map.of("AAPL", "Apple"));
     }
 
     @Test
@@ -203,8 +211,11 @@ class MarketScannerServiceTest {
                 yahooFinanceClient,
                 telegramClient,
                 properties(0.8, orderedWatchlist()),
-                quoteMapper
+                quoteMapper,
+                marketDashboardService,
+                watchlistService
         );
+        when(watchlistService.watchlist()).thenReturn(orderedWatchlist());
         Quote usQuote = quote("AAPL", 1.0);
         Quote euQuote = quote("BMW.DE", 1.5);
         QuoteEntity usEntity = entity("AAPL", 1.0);
@@ -248,6 +259,7 @@ class MarketScannerServiceTest {
                 "telegram-bot-token",
                 "telegram-chat-id",
                 "twelve-data-api-key",
+                null,
                 watchlist,
                 -0.4,
                 0.4,
