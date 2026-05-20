@@ -35,7 +35,7 @@ build/
 
 ### VS Code ###
 .vscode/
-watchlist.yaml
+watchlist*.yaml
 FAST_VISUALIZATION_CONCEPT.md
 OPENAI_NEWS_MONITORING.md
 

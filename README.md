@@ -1,20 +1,22 @@
 # Market Bot
 
-Market Bot is a Spring Boot command-line application that monitors configured stock market symbols and sends Telegram alerts when share prices move enough to match the configured alert rules.
+Market Bot is a Spring Boot market-monitoring application. It runs a scheduled backend scanner that monitors configured stock symbols, writes scan information to application output, stores quote history in PostgreSQL, sends Telegram alerts when movement rules are matched, and exposes live scan data for a UI dashboard.
 
-The application runs without an HTTP server because `spring.main.web-application-type` is set to `none`. It starts a scheduled scanner, reads market quotes, stores quote history in PostgreSQL, compares every symbol with previous values, and posts an alert message to a configured Telegram chat when the movement is significant.
+The application can still be run from the command line or as a Docker container, but it is no longer only a command-line process. It also starts an HTTP/WebSocket server for the dashboard frontend.
 
 ## How It Works
 
 On startup, Market Bot loads configuration from `src/main/resources/application.yaml` and environment variables. The scanner then runs every `market-bot.poll-interval-ms` milliseconds.
 
-For each symbol in `market-bot.watchlist`, the application:
+For each symbol from the configured watchlist, the application:
 
 1. Requests the current quote data.
 2. Stores the quote in PostgreSQL.
 3. Uses recent unsent quote records for the same symbol to calculate the latest delta and rolling movement.
 4. Marks persisted quote records as sent after an alert or after the rolling window is processed.
-5. Sends a Telegram alert when the absolute rolling movement is greater than or equal to `market-bot.maximal-delta-price`.
+5. Writes relevant scan information to output.
+6. Sends a Telegram alert when the absolute rolling movement is greater than or equal to `market-bot.maximal-delta-price`.
+7. Publishes structured scan results through REST/WebSocket endpoints for the UI dashboard.
 
 After an alert is sent, the current quote and the recent quote history used for the alert are marked as sent.
 
@@ -24,7 +26,7 @@ Yahoo Finance is currently used because other providers are limited for this use
 
 ## Configuration
 
-Main configuration is in `src/main/resources/application.yaml`. Spring Boot is configured as a non-web application, database settings are under `app.datasource` and `spring.jpa`, and the bot settings are under the `market-bot` prefix.
+Main configuration is in `src/main/resources/application.yaml`. Spring Boot is configured as a servlet web application, database settings are under `app.datasource` and `spring.jpa`, and the bot settings are under the `market-bot` prefix.
 
 ```yaml
 app:
@@ -36,7 +38,7 @@ app:
 
 spring:
   main:
-    web-application-type: none
+    web-application-type: servlet
   docker:
     compose:
       enabled: false
