@@ -3,7 +3,6 @@ package com.prognimak.marketbot.client;
 
 import com.prognimak.marketbot.model.Quote;
 import com.prognimak.marketbot.model.YahooChartResponse;
-import com.prognimak.marketbot.util.Utils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -56,7 +55,7 @@ public class YahooFinanceClient implements MarketDataProvider {
         return mapChartResult(symbol, results.getFirst());
     }
 
-    private Quote mapChartResult(String requestedSymbol, YahooChartResponse.Result result) {
+    Quote mapChartResult(String requestedSymbol, YahooChartResponse.Result result) {
         YahooChartResponse.Meta meta = result.meta();
         YahooChartResponse.Indicators indicators = result.indicators();
 
@@ -66,14 +65,10 @@ public class YahooFinanceClient implements MarketDataProvider {
 
         YahooChartResponse.QuoteData quote = indicators.quote().getFirst();
         double current = valueOrLastClose(meta.regularMarketPrice(), quote.close());
-        double previousClose = valueOrFallback(
-                meta.previousClose(),
-                meta.chartPreviousClose(),
-                current
-        );
+        int latestIndex = latestNumericIndex(quote.close());
+        double previousClose = previousClose(meta.previousClose(), meta.chartPreviousClose(), quote.close(), latestIndex, current);
         double change = current - previousClose;
         double percentChange = previousClose == 0 ? 0 : (change / previousClose) * 100;
-        int latestIndex = latestNumericIndex(quote.close());
 
         return new Quote(
                 meta.symbol() == null ? requestedSymbol : meta.symbol(),
@@ -100,13 +95,28 @@ public class YahooFinanceClient implements MarketDataProvider {
         throw new IllegalStateException("No numeric Yahoo Finance price found");
     }
 
-    private double valueOrFallback(Double first, Double second, double fallback) {
-        if (first != null) {
-            return first;
+    private double previousClose(
+            Double metaPreviousClose,
+            Double chartPreviousClose,
+            List<Double> closes,
+            int latestIndex,
+            double fallback
+    ) {
+        if (metaPreviousClose != null) {
+            return metaPreviousClose;
         }
 
-        if (second != null) {
-            return second;
+        if (closes != null) {
+            for (int i = latestIndex - 1; i >= 0; i--) {
+                Double value = closes.get(i);
+                if (value != null) {
+                    return value;
+                }
+            }
+        }
+
+        if (chartPreviousClose != null) {
+            return chartPreviousClose;
         }
 
         return fallback;

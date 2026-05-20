@@ -10,6 +10,7 @@ public record AppProperties(
         String telegramBotToken,
         String telegramChatId,
         String twelveDataApiKey,
+        String watchlistFile,
         Map<String, String> watchlist,
         double dropAlertPercent,
         double riseAlertPercent,

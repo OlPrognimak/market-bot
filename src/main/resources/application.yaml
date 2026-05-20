@@ -1,8 +1,8 @@
 app:
   datasource:
-    url: jdbc:postgresql://localhost:5455/test_db
-    username: test
-    password: test
+    url: ${APP_DATASOURCE_URL:jdbc:postgresql://localhost:5455/test_db}
+    username: ${APP_DATASOURCE_USERNAME:test}
+    password: ${APP_DATASOURCE_PASSWORD:test}
     configuration:
 
 
@@ -10,7 +10,7 @@ spring:
   application:
     name: market-bot
   main:
-    web-application-type: none
+    web-application-type: servlet
   docker:
     compose:
       enabled: false
@@ -19,7 +19,10 @@ spring:
       ddl-auto: update
     properties:
       hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
         default_schema: marketbot
+        hbm2ddl:
+          create_namespaces: true
         connection:
           pool_size: 30
 
@@ -28,124 +31,14 @@ market-bot:
   #twelve-data-api-key: ${TWELVE_API_KEY:$4k24k24k23kl4}
   telegram-bot-token: ${TELEGRAM_BOT_TOKEN:xxx}
   telegram-chat-id: ${TELEGRAM_CHAT_ID:11111111}
+  watchlist-file: ${MARKET_BOT_WATCHLIST_FILE:classpath:/watchlist.yaml}
 
+  # Fallback watchlist. If market-bot.watchlist-file points to a readable file,
+  # that external file is used instead and is reloaded on every scan.
   watchlist:
-    # =========================
-    # USA - Semiconductors / AI / Tech
-    # =========================
     AAPL: Apple
-    #ADPT: Adaptive Biotechnologies
-    AMAT: Applied Materials
-    AMD: Advanced Micro Devices
-    ARM: Arm Holdings
-    AVGO: Broadcom
-    #BLK: BlackRock
-    #GOOGL: Google
-    #IBM: IBM
-    INTC: Intel
-    LITE: Lumentum Holdings
-    MCHP: Microchip Technology
-    #MSFT: Microsoft
-    MU: Micron Technology
     NVDA: NVIDIA
-    NVTS: Navitas Semiconductor
-    ORCL: Oracle
-    OUST: Ouster
-    #PLTR: Palantir Technologies
-    QCOM: Qualcomm
-    RMBS: Rambus
-    IONQ: IonQ Quantum Computers
-    QUBT: Quantum Computing Inc
-    #TSM: Taiwan Semiconductor Manufacturing Company
-    RKLB: Rocket Lab
 
-    # =========================
-    # USA - AI / Robotics / Biotech
-    # =========================
-    #GLSI: Greenwich LifeSciences
-    #IBRX: ImmunityBio
-    LIDR: AEye
-    #VTYX: Ventyx Biosciences
-
-    # =========================
-    # USA - Mining / Lithium / Metals
-    # =========================
-    #AG: First Majestic Silver
-    CENX: Century Aluminum
-    EXK: Endeavour Silver
-    LAC: Lithium Americas
-    #MP: MP Materials
-    #NEM: Newmont
-    #PAAS: Pan American Silver
-    SCCO: Southern Copper
-    SGML: Sigma Lithium
-    SLI: Standard Lithium
-    #SVM: Silvercorp Metals
-
-    # =========================
-    # USA - Energy / Utilities
-    # =========================
-    CVX: Chevron
-    #NRGV: Energy Vault
-    #SHEL: Shell
-    #VST: Vistra
-    #XOM: ExxonMobil
-
-    # =========================
-    # USA - Industrial / Infrastructure
-    # =========================
-    #AMTM: Amentum Holdings
-    ATRO: Astronics
-    #DE: Deere & Company
-    #FTAI: FTAI Aviation
-    #NOV: NOV
-    #NVT: nVent Electric
-    #VICR: Vicor
-
-    # =========================
-    # USA - Automotive / EV
-    # =========================
-    #GM: General Motors
-    #TSLA: Tesla
-
-    # =========================
-    # USA - Finance
-    # =========================
-    SEI: SEI Investments
-
-    # =========================
-    # USA - Telecom / Networking
-    # =========================
-    NOK: Nokia
-
-    # =========================
-    # USA - Consumer / Food
-    # =========================
-    #BYND: Beyond Meat
-    CHEF: The Chefs' Warehouse
-
-    # =========================
-    # Healthcare / Insurance
-    # =========================
-    UNH: UnitedHealth Group
-
-    # =====================================================
-    # EUROPE - Use exchange suffixes for Yahoo
-    # =====================================================
-    ABB.ST: ABB
-    ABBN.SW: ABJ ABB
-    ROG.SW: Roche Holding AG
-    AIR.PA: Airbus
-    BMW.DE: BMW
-    ASML: ASML Holding
-    ASML.AS: ASML Holding
-    BAYN.DE: Bayer
-    ENR.DE: Siemens Energy AG
-    SIE.DE: Siemens AG
-    NVS: Novartis AG US
-    NOVN.SW: Novartis Swiss
-    #RHM.DE: Rheinmetall
-    STM: STMicroelectronics
 
   # Send a DOWN alert only when the current daily change is less than or equal to this value.
   # Example: -0.4 means the share must be down at least 0.4% for the day.
@@ -162,3 +55,9 @@ market-bot:
   # Minimum accumulated movement required before an alert can be sent.
   # Example: 0.8 means the rolling price movement must be at least 0.8% up or down.
   maximal-delta-price: 0.8
+
+  dashboard:
+    enabled: true
+    websocket-enabled: true
+    scan-trigger-mode: BOTH
+    max-results: 100

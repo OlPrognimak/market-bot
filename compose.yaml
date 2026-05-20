@@ -2,9 +2,17 @@ services:
   market-bot:
     image: market-bot:${MARKET_BOT_IMAGE_TAG:-0.0.1-SNAPSHOT}
     restart: unless-stopped
+    ports:
+      - "${MARKET_BOT_PORT:-8080}:8080"
+    volumes:
+      - ${MARKET_BOT_WATCHLIST_HOST_FILE:-./config/watchlist.yaml}:/app/config/watchlist.yaml:ro
     environment:
-      FINNHUB_API_KEY: ${FINNHUB_API_KEY}
-      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
-      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
+      APP_DATASOURCE_URL: ${APP_DATASOURCE_URL:-jdbc:postgresql://host.docker.internal:5455/test_db}
+      APP_DATASOURCE_USERNAME: ${APP_DATASOURCE_USERNAME:-test}
+      APP_DATASOURCE_PASSWORD: ${APP_DATASOURCE_PASSWORD:-test}
+      FINNHUB_API_KEY: ${FINNHUB_API_KEY:-}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:?TELEGRAM_BOT_TOKEN must be set in .env}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:?TELEGRAM_CHAT_ID must be set in .env}
       TWELVE_API_KEY: ${TWELVE_API_KEY:-}
+      MARKET_BOT_WATCHLIST_FILE: ${MARKET_BOT_WATCHLIST_FILE:-/app/config/watchlist.yaml}
       SPRING_DOCKER_COMPOSE_ENABLED: "false"
