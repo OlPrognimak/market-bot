@@ -8,6 +8,7 @@ import com.prognimak.marketbot.dashboard.service.MarketDashboardService;
 import com.prognimak.marketbot.entity.QuoteEntity;
 import com.prognimak.marketbot.mapper.QuoteMapper;
 import com.prognimak.marketbot.model.Quote;
+import com.prognimak.marketbot.model.WatchlistItem;
 import com.prognimak.marketbot.repository.QuoteRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -68,15 +69,19 @@ class MarketScannerServiceTest {
                 marketDashboardService,
                 watchlistService
         );
-        when(watchlistService.watchlist()).thenReturn(Map.of("AAPL", "Apple"));
+        when(watchlistService.watchlist()).thenReturn(Map.of("AAPL", WatchlistItem.simple("AAPL", "Apple")));
     }
 
     @Test
-    void scanMarketSavesInitialQuoteWithoutQueryingHistory() {
+    void scanMarketSavesInitialQuoteWhenNoPersistedHistoryExists() {
         Quote quote = quote("AAPL", 1.25);
         QuoteEntity entity = entity("AAPL", 1.25);
 
         when(yahooFinanceClient.getQuote("AAPL")).thenReturn(quote);
+        when(quoteRepository.findBySymbolAndSendIsFalseOrderByIdDesc(eq("AAPL"), any(Pageable.class)))
+                .thenReturn(List.of());
+        when(quoteRepository.findBySymbolOrderByIdDesc(eq("AAPL"), any(Pageable.class)))
+                .thenReturn(List.of());
         when(quoteMapper.toEntity(quote)).thenReturn(entity);
 
         service.scanMarket();
@@ -88,7 +93,30 @@ class MarketScannerServiceTest {
                 () -> assertEquals(1.25, captor.getValue().getDelta()),
                 () -> assertFalse(captor.getValue().isSend())
         );
-        verify(quoteRepository, never()).findBySymbolAndSendIsFalseOrderByIdDesc(any(), any());
+        verifyNoInteractions(finnhubClient, telegramClient);
+    }
+
+    @Test
+    void scanMarketUsesPersistedHistoryOnFirstScanAfterRestart() {
+        Quote quote = quote("AAPL", 1.2);
+        QuoteEntity entity = entity("AAPL", 1.2);
+        QuoteEntity persisted = entity("AAPL", 1.0);
+
+        when(yahooFinanceClient.getQuote("AAPL")).thenReturn(quote);
+        when(quoteRepository.findBySymbolAndSendIsFalseOrderByIdDesc(eq("AAPL"), any(Pageable.class)))
+                .thenReturn(List.of());
+        when(quoteRepository.findBySymbolOrderByIdDesc(eq("AAPL"), any(Pageable.class)))
+                .thenReturn(List.of(persisted));
+        when(quoteMapper.toQuotes(List.of(persisted))).thenReturn(new ArrayList<>(List.of(quote("AAPL", 1.0))));
+        when(quoteMapper.toEntity(quote)).thenReturn(entity);
+
+        service.scanMarket();
+
+        assertAll(
+                () -> assertEquals(0.2, entity.getDelta(), 0.0001),
+                () -> assertFalse(entity.isSend())
+        );
+        verify(quoteRepository).save(entity);
         verifyNoInteractions(finnhubClient, telegramClient);
     }
 
@@ -104,7 +132,9 @@ class MarketScannerServiceTest {
         when(quoteMapper.toEntity(firstQuote)).thenReturn(firstEntity);
         when(quoteMapper.toEntity(secondQuote)).thenReturn(secondEntity);
         when(quoteRepository.findBySymbolAndSendIsFalseOrderByIdDesc(eq("AAPL"), any(Pageable.class)))
-                .thenReturn(List.of(persisted));
+                .thenReturn(List.of(), List.of(persisted));
+        when(quoteRepository.findBySymbolOrderByIdDesc(eq("AAPL"), any(Pageable.class)))
+                .thenReturn(List.of());
         when(quoteMapper.toQuotes(List.of(persisted))).thenReturn(new ArrayList<>(List.of(quote("AAPL", 1.0))));
 
         service.scanMarket();
@@ -115,7 +145,6 @@ class MarketScannerServiceTest {
                 () -> assertFalse(secondEntity.isSend()),
                 () -> assertFalse(persisted.isSend())
         );
-        verify(quoteRepository).findBySymbolAndSendIsFalseOrderByIdDesc(eq("AAPL"), any(Pageable.class));
         verify(quoteRepository).save(secondEntity);
         verifyNoInteractions(finnhubClient, telegramClient);
     }
@@ -134,7 +163,9 @@ class MarketScannerServiceTest {
         when(quoteMapper.toEntity(firstQuote)).thenReturn(firstEntity);
         when(quoteMapper.toEntity(secondQuote)).thenReturn(secondEntity);
         when(quoteRepository.findBySymbolAndSendIsFalseOrderByIdDesc(eq("AAPL"), any(Pageable.class)))
-                .thenReturn(persistedHistoryNewestFirst);
+                .thenReturn(List.of(), persistedHistoryNewestFirst);
+        when(quoteRepository.findBySymbolOrderByIdDesc(eq("AAPL"), any(Pageable.class)))
+                .thenReturn(List.of());
         when(quoteMapper.toQuotes(persistedHistoryNewestFirst)).thenReturn(new ArrayList<>(List.of(
                 quote("AAPL", 1.0),
                 quote("AAPL", 0.0)
@@ -182,7 +213,9 @@ class MarketScannerServiceTest {
         when(quoteMapper.toEntity(firstQuote)).thenReturn(firstEntity);
         when(quoteMapper.toEntity(secondQuote)).thenReturn(secondEntity);
         when(quoteRepository.findBySymbolAndSendIsFalseOrderByIdDesc(eq("AAPL"), any(Pageable.class)))
-                .thenReturn(persistedHistory);
+                .thenReturn(List.of(), persistedHistory);
+        when(quoteRepository.findBySymbolOrderByIdDesc(eq("AAPL"), any(Pageable.class)))
+                .thenReturn(List.of());
         when(quoteMapper.toQuotes(persistedHistory)).thenReturn(new ArrayList<>(List.of(
                 quote("AAPL", 1.0),
                 quote("AAPL", 1.0),
@@ -215,7 +248,7 @@ class MarketScannerServiceTest {
                 marketDashboardService,
                 watchlistService
         );
-        when(watchlistService.watchlist()).thenReturn(orderedWatchlist());
+        when(watchlistService.watchlist()).thenReturn(orderedWatchlistItems());
         Quote usQuote = quote("AAPL", 1.0);
         Quote euQuote = quote("BMW.DE", 1.5);
         QuoteEntity usEntity = entity("AAPL", 1.0);
@@ -242,14 +275,17 @@ class MarketScannerServiceTest {
 
         when(yahooFinanceClient.getQuote("AAPL")).thenReturn(firstQuote, secondQuote);
         when(quoteMapper.toEntity(firstQuote)).thenReturn(firstEntity);
+        when(quoteMapper.toEntity(secondQuote)).thenReturn(secondEntity);
         when(quoteRepository.findBySymbolAndSendIsFalseOrderByIdDesc(eq("AAPL"), any(Pageable.class)))
+                .thenReturn(List.of());
+        when(quoteRepository.findBySymbolOrderByIdDesc(eq("AAPL"), any(Pageable.class)))
                 .thenReturn(List.of());
 
         service.scanMarket();
 
         assertDoesNotThrow(() -> service.scanMarket());
 
-        verify(quoteRepository, never()).save(secondEntity);
+        verify(quoteRepository).save(secondEntity);
         verifyNoInteractions(finnhubClient, telegramClient);
     }
 
@@ -272,6 +308,13 @@ class MarketScannerServiceTest {
         Map<String, String> watchlist = new LinkedHashMap<>();
         watchlist.put("AAPL", "Apple");
         watchlist.put("BMW.DE", "BMW");
+        return watchlist;
+    }
+
+    private static Map<String, WatchlistItem> orderedWatchlistItems() {
+        Map<String, WatchlistItem> watchlist = new LinkedHashMap<>();
+        watchlist.put("AAPL", WatchlistItem.simple("AAPL", "Apple"));
+        watchlist.put("BMW.DE", WatchlistItem.simple("BMW.DE", "BMW"));
         return watchlist;
     }
 

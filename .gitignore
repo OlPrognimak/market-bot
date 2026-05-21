@@ -1,6 +1,8 @@
 HELP.md
 target/
 .env
+.env.local
+frontend/.env.local
 watchlist.local.*
 config/watchlist.*
 .mvn/wrapper/maven-wrapper.jar
@@ -38,4 +40,3 @@ build/
 watchlist*.yaml
 FAST_VISUALIZATION_CONCEPT.md
 OPENAI_NEWS_MONITORING.md
-

@@ -10,6 +10,7 @@ import com.prognimak.marketbot.dashboard.service.MarketDashboardService;
 import com.prognimak.marketbot.entity.QuoteEntity;
 import com.prognimak.marketbot.mapper.QuoteMapper;
 import com.prognimak.marketbot.model.Quote;
+import com.prognimak.marketbot.model.WatchlistItem;
 import com.prognimak.marketbot.repository.QuoteRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
@@ -24,7 +25,6 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static com.prognimak.marketbot.util.Utils.calculateRollingChanges;
@@ -56,9 +56,6 @@ private static final Set<String> YAHOO_EU_SUFFIXES = Set.of(
             ".WA"
     );
 
-    private final Map<String, Double> lastPercentMap = new ConcurrentHashMap<>();
-    private final Map<String, Deque<Double>> deltaHistoryMap = new ConcurrentHashMap<>();
-
     /*That uses in case of using two providers.*/
     @SneakyThrows
     private  void getQuote(String symbol, AtomicReference<Quote>  atomicQuote) {
@@ -84,17 +81,18 @@ private static final Set<String> YAHOO_EU_SUFFIXES = Set.of(
     public void scanMarket() {
         log.info("Start scanning market...");
         Instant scanStartedAt = Instant.now();
-        Map<String, String> watchlist = watchlistService.watchlist();
+        Map<String, WatchlistItem> watchlist = watchlistService.watchlist();
         if (watchlist.isEmpty()) {
             log.warn("No symbols configured for market scan.");
             marketDashboardService.publishSnapshot(scanStartedAt);
             return;
         }
 
-        for (Map.Entry<String, String> entry : watchlist.entrySet()) {
+        for (Map.Entry<String, WatchlistItem> entry : watchlist.entrySet()) {
 
             String symbol = entry.getKey();
-            String companyName = entry.getValue();
+            WatchlistItem watchlistItem = entry.getValue();
+            String companyName = watchlistItem.name();
 
             try {
                 AtomicReference<Quote>  atomicQuote = new AtomicReference<>();
@@ -102,34 +100,15 @@ private static final Set<String> YAHOO_EU_SUFFIXES = Set.of(
                 Quote quote = atomicQuote.get();
 
                 double currentPercent = quote.percentChange();
-                Double lastPercent = lastPercentMap.get(symbol);
+                PersistedHistory persistedHistory = persistedHistory(symbol);
+                List<QuoteEntity> lastPersistedChanges = persistedHistory.changes();
 
-                if (lastPercent == null) {
-                    lastPercentMap.put(symbol, currentPercent);
+                if (lastPersistedChanges.isEmpty()) {
                     System.out.printf("%s (%s) initial value saved: %.2f%%%n", companyName, symbol, currentPercent);
                     QuoteEntity entity = quoteMapper.toEntity(quote);
                     entity.setDelta(quote.percentChange());
                     quoteRepository.save(entity);
-                    recordDashboardResult(quote, companyName, currentPercent, 0, 0, false, null);
-                    continue;
-                }
-
-                lastPercentMap.put(symbol, currentPercent);
-
-                Deque<Double> history = deltaHistoryMap.computeIfAbsent(
-                        symbol,
-                        key -> new ArrayDeque<>()
-                );
-
-
-                List<QuoteEntity> lastPersistedChanges =
-                        quoteRepository.findBySymbolAndSendIsFalseOrderByIdDesc(
-                                symbol, PageRequest.of(0, MAX_ROLLING_SIZE));
-                if (lastPersistedChanges.isEmpty()) {
-                    QuoteEntity entity = quoteMapper.toEntity(quote);
-                    entity.setDelta(quote.percentChange());
-                    quoteRepository.save(entity);
-                    recordDashboardResult(quote, companyName, currentPercent, 0, 0, false, null);
+                    recordDashboardResult(quote, watchlistItem, currentPercent, 0, 0, false, null);
                     continue;
                 }
 
@@ -165,22 +144,19 @@ private static final Set<String> YAHOO_EU_SUFFIXES = Set.of(
                             companyName,
                             symbol,
                             currentPercent,
-                            lastPercent,
+                            latestPersistedChange.getPercentChange(),
                             delta,
                             rollingDeltaSum
                     );
 
-                    messageText = buildMessage(quote, companyName, delta, rollingDeltaSum);
+                    messageText = buildMessage(quote, watchlistItem, delta, rollingDeltaSum);
                     telegramClient.sendMessage(messageText);
                     quoteEntity.setSend(true);
                     lastPersistedChanges.forEach(q -> q.setSend(true));
                     haveSendFlag = true;
-                    if (!history.isEmpty()) {
-                        history.clear();
-                    }
                 }
-                recordDashboardResult(quote, companyName, latestPersistedChange.getPercentChange(), delta, rollingDeltaSum, haveSendFlag, messageText);
-                if(!haveSendFlag && lastPersistedChanges.size() >=  MAX_ROLLING_SIZE) {
+                recordDashboardResult(quote, watchlistItem, latestPersistedChange.getPercentChange(), delta, rollingDeltaSum, haveSendFlag, messageText);
+                if(!haveSendFlag && persistedHistory.unsent() && lastPersistedChanges.size() >=  MAX_ROLLING_SIZE) {
                     //Can be set to true afater send message
                     lastPersistedChanges.stream().filter(
                             q ->q.isSend()==false).forEach(q -> q.setSend(true));
@@ -195,9 +171,28 @@ private static final Set<String> YAHOO_EU_SUFFIXES = Set.of(
         log.info("End scanning market...");
     }
 
+    private PersistedHistory persistedHistory(String symbol) {
+        List<QuoteEntity> unsentChanges = quoteRepository.findBySymbolAndSendIsFalseOrderByIdDesc(
+                symbol, PageRequest.of(0, MAX_ROLLING_SIZE));
+        if (unsentChanges != null && !unsentChanges.isEmpty()) {
+            return new PersistedHistory(unsentChanges, true);
+        }
+
+        List<QuoteEntity> recentChanges = quoteRepository.findBySymbolOrderByIdDesc(
+                symbol, PageRequest.of(0, MAX_ROLLING_SIZE));
+        if (recentChanges == null) {
+            return new PersistedHistory(List.of(), false);
+        }
+
+        return new PersistedHistory(recentChanges, false);
+    }
+
+    private record PersistedHistory(List<QuoteEntity> changes, boolean unsent) {
+    }
+
     private void recordDashboardResult(
             Quote quote,
-            String companyName,
+            WatchlistItem watchlistItem,
             double previousPercent,
             double delta,
             double rollingDelta,
@@ -206,7 +201,12 @@ private static final Set<String> YAHOO_EU_SUFFIXES = Set.of(
     ) {
         marketDashboardService.recordResult(new MarketScanResult(
                 quote.symbol(),
-                companyName,
+                watchlistItem.name(),
+                watchlistItem.region(),
+                watchlistItem.sector(),
+                watchlistItem.exchange(),
+                watchlistItem.currency(),
+                watchlistItem.priority().name(),
                 quote.percentChange(),
                 previousPercent,
                 delta,
@@ -238,12 +238,13 @@ private static final Set<String> YAHOO_EU_SUFFIXES = Set.of(
 
     private String buildMessage(
             Quote quote,
-            String companyName,
+            WatchlistItem watchlistItem,
             double delta,
             double rollingDelta
     ) {
         String icon = rollingDelta >= 0 ? "🟢" : "🔴";
         String direction = rollingDelta >= 0 ? "UP" : "DOWN";
+        String companyLabel = companyLabel(watchlistItem);
 
         String timestamp = LocalDateTime.now()
                 .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
@@ -264,7 +265,7 @@ private static final Set<String> YAHOO_EU_SUFFIXES = Set.of(
             """.formatted(
                 timestamp,
                 icon,
-                companyName,
+                companyLabel,
                 quote.symbol(),
                 direction,
                 quote.percentChange(),
@@ -276,6 +277,14 @@ private static final Set<String> YAHOO_EU_SUFFIXES = Set.of(
                 quote.open(),
                 quote.previousClose()
         );
+    }
+
+    private String companyLabel(WatchlistItem watchlistItem) {
+        if (watchlistItem.region() == null || watchlistItem.region().isBlank()) {
+            return watchlistItem.name();
+        }
+
+        return "%s (%s)".formatted(watchlistItem.name(), watchlistItem.region());
     }
 
     private Quote getQuoteForProvider(String symbol) {

@@ -13,6 +13,7 @@ Main areas:
 - Header with connection status and last scan time.
 - Summary strip with strongest positive and negative movement.
 - Toolbar with search, sorting, reload, and optional manual scan.
+- Exact filters for country, priority, sector, and exchange.
 - Main results table with the latest scan results.
 
 The summary strip shows:
@@ -27,6 +28,8 @@ The table shows:
 
 - symbol
 - company
+- region
+- priority
 - current percent change
 - delta since previous persisted value
 - rolling movement
@@ -61,7 +64,9 @@ If backend configuration allows manual scanning, the `Scan Now` button calls:
 POST http://localhost:8080/api/dashboard/scan
 ```
 
-The frontend expects the backend to own the main ranking logic. Local sorting is only a UI convenience.
+The frontend expects the backend to own the main ranking logic. Local sorting is only a UI convenience. Exact filters can be combined, for example country `US` plus priority `HIGH`.
+
+Watchlist metadata such as `region`, `sector`, `exchange`, `currency`, and `priority` comes from the backend watchlist file. The current table displays `region` and `priority`; the other fields are part of the API model so later filters and detail panels can use them without changing the backend contract again.
 
 ## Configuration
 

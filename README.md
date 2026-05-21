@@ -133,21 +133,40 @@ Recommended YAML format:
 
 ```yaml
 watchlist:
-  # symbol: company name
-  AAPL: Apple
-  NVDA: NVIDIA
-  BMW.DE: BMW
-  ABBN.SW: ABB
+  AAPL:
+    name: Apple
+    region: US
+    sector: Technology
+    exchange: NASDAQ
+    currency: USD
+    priority: HIGH
+    enabled: true
+
+  BMW.DE:
+    name: BMW
+    region: EU
+    sector: Automotive
+    exchange: XETRA
+    currency: EUR
+    priority: NORMAL
+    enabled: true
 ```
 
-The checked-in sample is [src/main/resources/watchlist.yaml](/Users/alexadmin/Desktop/work/WORK_PROJCTS/market-bot/src/main/resources/watchlist.yaml).
+The local sample is [src/main/resources/watchlist.yaml](/Users/alexadmin/Desktop/work/WORK_PROJCTS/market-bot/src/main/resources/watchlist.yaml). Real watchlist files can stay ignored by git.
 
-`market-bot.watchlist` remains as a fallback map where:
+Supported watchlist item fields:
 
-- the key is the market symbol used for quote lookup;
-- the value is the company name displayed in logs and Telegram messages.
+| Field | Description |
+| --- | --- |
+| `name` | Company name shown in logs, Telegram messages, and the dashboard. Required for structured items. |
+| `region` | Region label used for future scan/filter controls, for example `US` or `EU`. |
+| `sector` | Business sector used for dashboard grouping and future news filtering. |
+| `exchange` | Exchange label, for example `NASDAQ`, `NYSE`, `XETRA`, or `SIX`. |
+| `currency` | Quote currency, for example `USD`, `EUR`, or `CHF`. |
+| `priority` | Favorite/rank level. Supported values: `HIGH`, `NORMAL`, `LOW`. |
+| `enabled` | Set to `false` to keep a symbol in the file without scanning it. |
 
-Examples:
+The scanner also supports the old simple format:
 
 ```yaml
 watchlist:
@@ -156,6 +175,11 @@ watchlist:
   BMW.DE: BMW
   ABBN.SW: ABB
 ```
+
+`market-bot.watchlist` remains as a fallback map where:
+
+- the key is the market symbol used for quote lookup;
+- the value is the company name displayed in logs and Telegram messages.
 
 For non-US shares, use the exchange suffix expected by Yahoo Finance, for example `.DE`, `.PA`, `.SW`, `.ST`, or `.AS`.
 

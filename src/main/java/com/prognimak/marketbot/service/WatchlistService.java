@@ -4,6 +4,8 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.prognimak.marketbot.config.AppProperties;
+import com.prognimak.marketbot.model.WatchlistItem;
+import com.prognimak.marketbot.model.WatchlistPriority;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.FileSystemResource;
@@ -27,7 +29,7 @@ public class WatchlistService {
     private final ResourceLoader resourceLoader;
     private final ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
 
-    public Map<String, String> watchlist() {
+    public Map<String, WatchlistItem> watchlist() {
         String watchlistFile = properties.watchlistFile();
         if (watchlistFile == null || watchlistFile.isBlank()) {
             return configuredWatchlist();
@@ -40,7 +42,7 @@ public class WatchlistService {
         }
 
         try (InputStream inputStream = resource.getInputStream()) {
-            Map<String, String> fileWatchlist = readWatchlist(inputStream);
+            Map<String, WatchlistItem> fileWatchlist = readWatchlist(inputStream);
             if (fileWatchlist.isEmpty()) {
                 log.warn("Watchlist file {} is empty. Falling back to application watchlist.", watchlistFile);
                 return configuredWatchlist();
@@ -61,16 +63,24 @@ public class WatchlistService {
         return new FileSystemResource(Path.of(location));
     }
 
-    private Map<String, String> configuredWatchlist() {
+    private Map<String, WatchlistItem> configuredWatchlist() {
         if (properties.watchlist() == null) {
             return Map.of();
         }
 
-        return properties.watchlist();
+        Map<String, WatchlistItem> watchlist = new LinkedHashMap<>();
+        properties.watchlist().forEach((symbol, companyName) ->
+                watchlist.put(symbol, WatchlistItem.simple(symbol, companyName))
+        );
+        return watchlist;
     }
 
-    private Map<String, String> readWatchlist(InputStream inputStream) throws IOException {
+    private Map<String, WatchlistItem> readWatchlist(InputStream inputStream) throws IOException {
         Map<String, Object> root = yamlMapper.readValue(inputStream, YAML_MAP_TYPE);
+        if (root == null || root.isEmpty()) {
+            return Map.of();
+        }
+
         Object watchlistNode = root.containsKey("watchlist") ? root.get("watchlist") : root;
 
         if (!(watchlistNode instanceof Map<?, ?> rawWatchlist)) {
@@ -78,13 +88,78 @@ public class WatchlistService {
             return Map.of();
         }
 
-        Map<String, String> watchlist = new LinkedHashMap<>();
-        rawWatchlist.forEach((symbol, companyName) -> {
-            if (symbol != null && companyName != null) {
-                watchlist.put(symbol.toString(), companyName.toString());
+        Map<String, WatchlistItem> watchlist = new LinkedHashMap<>();
+        rawWatchlist.forEach((symbol, value) -> {
+            WatchlistItem item = toWatchlistItem(symbol, value);
+            if (item != null && item.enabled()) {
+                watchlist.put(item.symbol(), item);
             }
         });
 
         return watchlist;
+    }
+
+    private WatchlistItem toWatchlistItem(Object symbolValue, Object value) {
+        if (symbolValue == null || value == null) {
+            return null;
+        }
+
+        String symbol = symbolValue.toString();
+        if (value instanceof String companyName) {
+            return WatchlistItem.simple(symbol, companyName);
+        }
+
+        if (!(value instanceof Map<?, ?> metadata)) {
+            log.warn("Skipping invalid watchlist item for symbol {}: {}", symbol, value);
+            return null;
+        }
+
+        String name = stringValue(metadata, "name");
+        if (name == null || name.isBlank()) {
+            log.warn("Skipping watchlist item {} because required field 'name' is missing.", symbol);
+            return null;
+        }
+
+        return new WatchlistItem(
+                symbol,
+                name,
+                stringValue(metadata, "region"),
+                stringValue(metadata, "sector"),
+                stringValue(metadata, "exchange"),
+                stringValue(metadata, "currency"),
+                booleanValue(metadata, "enabled", true),
+                priorityValue(metadata)
+        );
+    }
+
+    private String stringValue(Map<?, ?> metadata, String key) {
+        Object value = metadata.get(key);
+        return value == null ? null : value.toString();
+    }
+
+    private boolean booleanValue(Map<?, ?> metadata, String key, boolean fallback) {
+        Object value = metadata.get(key);
+        if (value == null) {
+            return fallback;
+        }
+        if (value instanceof Boolean booleanValue) {
+            return booleanValue;
+        }
+
+        return Boolean.parseBoolean(value.toString());
+    }
+
+    private WatchlistPriority priorityValue(Map<?, ?> metadata) {
+        Object value = metadata.get("priority");
+        if (value == null) {
+            return WatchlistPriority.NORMAL;
+        }
+
+        try {
+            return WatchlistPriority.valueOf(value.toString().trim().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            log.warn("Unknown watchlist priority {}. Falling back to NORMAL.", value);
+            return WatchlistPriority.NORMAL;
+        }
     }
 }

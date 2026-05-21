@@ -5,6 +5,11 @@ import java.time.Instant;
 public record MarketScanResult(
         String symbol,
         String companyName,
+        String region,
+        String sector,
+        String exchange,
+        String currency,
+        String priority,
         double currentPercent,
         double previousPercent,
         double delta,

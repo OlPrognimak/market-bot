@@ -13,6 +13,10 @@ export function DashboardPage() {
   const { snapshot, connectionState, error, fetchSnapshot, triggerScan } = useMarketDashboardSocket();
   const [sortKey, setSortKey] = useState<SortKey>("backend");
   const [query, setQuery] = useState("");
+  const [regionFilter, setRegionFilter] = useState("ALL");
+  const [priorityFilter, setPriorityFilter] = useState("ALL");
+  const [sectorFilter, setSectorFilter] = useState("ALL");
+  const [exchangeFilter, setExchangeFilter] = useState("ALL");
   const [actionError, setActionError] = useState<string | null>(null);
   const [manualScanBusy, setManualScanBusy] = useState(false);
 
@@ -26,15 +30,46 @@ export function DashboardPage() {
     const rawResults = snapshot?.results ?? [];
     const filtered = rawResults.filter((result) => {
       const normalizedQuery = query.trim().toLowerCase();
+      if (regionFilter !== "ALL" && normalizedValue(result.region) !== regionFilter) {
+        return false;
+      }
+      if (priorityFilter !== "ALL" && normalizedPriority(result.priority) !== priorityFilter) {
+        return false;
+      }
+      if (sectorFilter !== "ALL" && normalizedValue(result.sector) !== sectorFilter) {
+        return false;
+      }
+      if (exchangeFilter !== "ALL" && normalizedValue(result.exchange) !== exchangeFilter) {
+        return false;
+      }
       if (!normalizedQuery) {
         return true;
       }
 
-      return `${result.symbol} ${result.companyName}`.toLowerCase().includes(normalizedQuery);
+      return [
+        result.symbol,
+        result.companyName,
+        result.region,
+        result.priority,
+        result.sector,
+        result.exchange,
+        result.currency
+      ].filter(Boolean).join(" ").toLowerCase().includes(normalizedQuery);
     });
 
     return sortMarketResults(filtered, sortKey);
-  }, [query, snapshot?.results, sortKey]);
+  }, [exchangeFilter, priorityFilter, query, regionFilter, sectorFilter, snapshot?.results, sortKey]);
+
+  const filterOptions = useMemo(() => {
+    const rawResults = snapshot?.results ?? [];
+
+    return {
+      regions: uniqueValues(rawResults.map((result) => result.region)),
+      priorities: uniqueValues(rawResults.map((result) => normalizedPriority(result.priority))),
+      sectors: uniqueValues(rawResults.map((result) => result.sector)),
+      exchanges: uniqueValues(rawResults.map((result) => result.exchange))
+    };
+  }, [snapshot?.results]);
 
   const manualScanEnabled = snapshot?.triggerMode === "BOTH" || snapshot?.triggerMode === "FRONTEND_TRIGGERED";
 
@@ -79,6 +114,30 @@ export function DashboardPage() {
           <option value="symbol">Symbol</option>
           <option value="updatedAt">Updated time</option>
         </select>
+        <select value={regionFilter} onChange={(event) => setRegionFilter(event.target.value)} aria-label="Filter country">
+          <option value="ALL">All countries</option>
+          {filterOptions.regions.map((region) => (
+            <option key={region} value={region}>{region}</option>
+          ))}
+        </select>
+        <select value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value)} aria-label="Filter priority">
+          <option value="ALL">All priorities</option>
+          {filterOptions.priorities.map((priority) => (
+            <option key={priority} value={priority}>{priority}</option>
+          ))}
+        </select>
+        <select value={sectorFilter} onChange={(event) => setSectorFilter(event.target.value)} aria-label="Filter sector">
+          <option value="ALL">All sectors</option>
+          {filterOptions.sectors.map((sector) => (
+            <option key={sector} value={sector}>{sector}</option>
+          ))}
+        </select>
+        <select value={exchangeFilter} onChange={(event) => setExchangeFilter(event.target.value)} aria-label="Filter exchange">
+          <option value="ALL">All exchanges</option>
+          {filterOptions.exchanges.map((exchange) => (
+            <option key={exchange} value={exchange}>{exchange}</option>
+          ))}
+        </select>
         <button type="button" onClick={() => fetchSnapshot()} className="secondary-button">
           Reload
         </button>
@@ -94,4 +153,16 @@ export function DashboardPage() {
       <MarketResultsTable results={results} />
     </main>
   );
+}
+
+function uniqueValues(values: Array<string | null | undefined>): string[] {
+  return Array.from(new Set(values.map(normalizedValue).filter((value) => value !== "-"))).sort();
+}
+
+function normalizedValue(value: string | null | undefined): string {
+  return value && value.trim() ? value.trim() : "-";
+}
+
+function normalizedPriority(value: string | null | undefined): string {
+  return value && value.trim() ? value.trim() : "NORMAL";
 }

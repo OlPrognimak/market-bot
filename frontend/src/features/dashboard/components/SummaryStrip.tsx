@@ -36,7 +36,27 @@ function SummaryPanel({
     <div className={`summary-panel ${tone}`}>
       <span className="panel-title">{title}</span>
       <strong>{result ? formatPercent(result[valueKey]) : "No data"}</strong>
-      <span className="panel-subtitle">{result ? `${result.companyName} (${result.symbol})` : "Waiting for scan"}</span>
+      {result ? (
+        <span className="panel-subtitle">
+          <span>{companyLabel(result)} | {result.symbol}</span>
+          <span>{compactMetadata(result)}</span>
+        </span>
+      ) : (
+        <span className="panel-subtitle">Waiting for scan</span>
+      )}
     </div>
   );
+}
+
+function companyLabel(result: MarketScanResult): string {
+  return result.region ? `${result.companyName} (${result.region})` : result.companyName;
+}
+
+function compactMetadata(result: MarketScanResult): string {
+  return [
+    result.sector,
+    result.exchange,
+    result.currency,
+    result.priority ? `Priority ${result.priority}` : null
+  ].filter(Boolean).join(" | ");
 }

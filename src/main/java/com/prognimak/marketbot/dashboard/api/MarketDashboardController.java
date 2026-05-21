@@ -16,7 +16,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/api/dashboard")
-@CrossOrigin(origins = "http://localhost:3000")
+@CrossOrigin(originPatterns = "*")
 @RequiredArgsConstructor
 public class MarketDashboardController {
     private final MarketDashboardProperties properties;

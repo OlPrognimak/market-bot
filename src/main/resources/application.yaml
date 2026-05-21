@@ -61,3 +61,13 @@ market-bot:
     websocket-enabled: true
     scan-trigger-mode: BOTH
     max-results: 100
+
+server:
+  tomcat:
+    basedir: .
+    accesslog:
+      enabled: true
+      directory: logs
+      pattern: '%h %l %u %t "%r" %s %b %D'
+      prefix: access
+      suffix: .log

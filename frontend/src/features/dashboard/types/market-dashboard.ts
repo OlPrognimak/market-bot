@@ -5,6 +5,11 @@ export type ScanTriggerMode = "BACKEND_SCHEDULED" | "FRONTEND_TRIGGERED" | "BOTH
 export type MarketScanResult = {
   symbol: string;
   companyName: string;
+  region?: string | null;
+  sector?: string | null;
+  exchange?: string | null;
+  currency?: string | null;
+  priority?: string | null;
   currentPercent: number;
   previousPercent: number;
   delta: number;

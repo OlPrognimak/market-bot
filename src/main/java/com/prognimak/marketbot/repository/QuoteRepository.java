@@ -9,4 +9,6 @@ import java.util.List;
 public interface QuoteRepository extends JpaRepository<QuoteEntity, Long> {
 
     List<QuoteEntity> findBySymbolAndSendIsFalseOrderByIdDesc(String symbol, Pageable pageable);
+
+    List<QuoteEntity> findBySymbolOrderByIdDesc(String symbol, Pageable pageable);
 }

@@ -17,6 +17,8 @@ export function MarketResultsTable({ results }: Props) {
           <tr>
             <th>Symbol</th>
             <th>Company</th>
+            <th>Country</th>
+            <th>Priority</th>
             <th>Current</th>
             <th>Delta</th>
             <th>Rolling</th>
@@ -31,7 +33,12 @@ export function MarketResultsTable({ results }: Props) {
               <td>
                 <strong>{result.symbol}</strong>
               </td>
-              <td>{result.companyName}</td>
+              <td className="metadata-cell" tabIndex={0} aria-label={metadataText(result)}>
+                {companyLabel(result)}
+                <span className="metadata-popover" role="tooltip">{metadataText(result)}</span>
+              </td>
+              <td>{result.region ?? "-"}</td>
+              <td>{result.priority ?? "NORMAL"}</td>
               <td className={toneClass(result.currentPercent)}>{formatPercent(result.currentPercent)}</td>
               <td className={toneClass(result.delta)}>{formatPercent(result.delta)}</td>
               <td className={toneClass(result.rollingDelta)}>
@@ -49,6 +56,21 @@ export function MarketResultsTable({ results }: Props) {
       </table>
     </div>
   );
+}
+
+function companyLabel(result: MarketScanResult): string {
+  return result.region ? `${result.companyName} (${result.region})` : result.companyName;
+}
+
+function metadataText(result: MarketScanResult): string {
+  return [
+    `Company: ${companyLabel(result)}`,
+    `Symbol: ${result.symbol}`,
+    `Sector: ${result.sector ?? "-"}`,
+    `Exchange: ${result.exchange ?? "-"}`,
+    `Currency: ${result.currency ?? "-"}`,
+    `Priority: ${result.priority ?? "NORMAL"}`
+  ].join("\n");
 }
 
 function toneClass(value: number): string {
