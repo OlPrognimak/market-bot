@@ -15,7 +15,7 @@ class YahooFinanceClientTest {
     private final YahooFinanceClient client = new YahooFinanceClient(WebClient.builder());
 
     @Test
-    void mapChartResultUsesPreviousDailyCandleWhenMetaPreviousCloseIsMissing() {
+    void mapChartResultUsesChartPreviousCloseWhenMetaPreviousCloseIsMissing() {
         YahooChartResponse.Result result = result(
                 new YahooChartResponse.Meta(
                         "OUST",
@@ -30,9 +30,12 @@ class YahooFinanceClientTest {
 
         assertAll(
                 () -> assertEquals(33.12, quote.current()),
-                () -> assertEquals(33.11, quote.previousClose()),
-                () -> assertEquals(0.01, quote.change()),
-                () -> assertEquals(0.03, quote.percentChange())
+                () -> assertEquals(23.94, quote.previousClose()),
+                () -> assertEquals(9.18, quote.change()),
+                () -> assertEquals(38.35, quote.percentChange()),
+                () -> assertEquals(35.00, quote.high()),
+                () -> assertEquals(31.00, quote.low()),
+                () -> assertEquals(32.50, quote.open())
         );
     }
 
@@ -62,13 +65,14 @@ class YahooFinanceClientTest {
             List<Double> closes
     ) {
         YahooChartResponse.QuoteData quoteData = new YahooChartResponse.QuoteData(
-                List.of(33.00, 33.00, 33.00, 33.00, 33.00),
-                List.of(34.00, 34.00, 34.00, 34.00, 34.00),
-                List.of(32.00, 32.00, 32.00, 32.00, 32.00),
+                List.of(32.50, 33.00, 33.00, 33.00, 33.00),
+                List.of(33.00, 34.00, 35.00, 34.00, 33.50),
+                List.of(32.00, 31.00, 32.00, 32.00, 32.00),
                 closes
         );
         return new YahooChartResponse.Result(
                 meta,
+                List.of(),
                 new YahooChartResponse.Indicators(List.of(quoteData))
         );
     }

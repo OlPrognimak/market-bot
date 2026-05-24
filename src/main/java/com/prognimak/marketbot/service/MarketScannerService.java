@@ -12,10 +12,13 @@ import com.prognimak.marketbot.mapper.QuoteMapper;
 import com.prognimak.marketbot.model.Quote;
 import com.prognimak.marketbot.model.WatchlistItem;
 import com.prognimak.marketbot.repository.QuoteRepository;
+import com.prognimak.marketbot.util.Utils;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.NonNull;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.context.annotation.Profile;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,6 +33,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static com.prognimak.marketbot.util.Utils.calculateRollingChanges;
 
 @Service
+@Profile("!history-backfill")
 @Slf4j
 @RequiredArgsConstructor
 @Transactional
@@ -47,7 +51,9 @@ public class MarketScannerService {
     private static final String TEXT_COLOR_BLUE = "\u001B[34m";
     private static final String TEXT_COLOR_NON = "\u001B[0m";
 
-    private static final int MAX_ROLLING_SIZE = 5;
+    //private static final int MAX_ROLLING_SIZE = 5;
+    private static final double QUOTE_CHANGE_EPSILON = 0.0001;
+    private static final double MAX_CHANGES_FOR_PERSIST = 0.08;
 
 private static final Set<String> YAHOO_EU_SUFFIXES = Set.of(
             ".AS", ".AT", ".BE", ".BR", ".CO", ".DE", ".DU", ".F",
@@ -106,13 +112,27 @@ private static final Set<String> YAHOO_EU_SUFFIXES = Set.of(
                 if (lastPersistedChanges.isEmpty()) {
                     System.out.printf("%s (%s) initial value saved: %.2f%%%n", companyName, symbol, currentPercent);
                     QuoteEntity entity = quoteMapper.toEntity(quote);
-                    entity.setDelta(quote.percentChange());
+                    entity.setDelta(0);
                     quoteRepository.save(entity);
-                    recordDashboardResult(quote, watchlistItem, currentPercent, 0, 0, false, null);
+                    recordDashboardResult(quote, watchlistItem, currentPercent, 0, 0, false, null, lastPersistedChanges);
                     continue;
                 }
 
-                QuoteEntity latestPersistedChange = lastPersistedChanges.getFirst();
+                QuoteEntity latestPersistedChange = quoteRepository.findFirstBySymbolOrderByCreatedDesc(symbol)
+                        .orElse(lastPersistedChanges.getFirst());
+                double delta = quote.percentChange() - latestPersistedChange.getPercentChange();
+                QuoteEntity quoteEntity = quoteMapper.toEntity(quote);
+                quoteEntity.setDelta(delta);
+                if (!hasQuoteChanged(quote, latestPersistedChange)) {
+                    recordDashboardResult(quote, watchlistItem, latestPersistedChange.getPercentChange(), 0,
+                            0, false, null,  lastPersistedChanges);
+
+                    if (Math.abs(Utils.roundDouble(delta, 2)) >=  MAX_CHANGES_FOR_PERSIST) {
+                        quoteRepository.save(quoteEntity);
+                    }
+                    //log.info("Skipping unchanged quote for {}: price={} percent={}", symbol, quote.current(), quote.percentChange());
+                    continue;
+                }
 
                 List<Quote> quotes = quoteMapper.toQuotes(lastPersistedChanges);
                 Collections.reverse(quotes);
@@ -121,21 +141,15 @@ private static final Set<String> YAHOO_EU_SUFFIXES = Set.of(
                 double rollingDeltaSum = calculateRollingChanges(quotes);
 
 
-                String color = rollingDeltaSum < 0?TEXT_COLOR_RED :TEXT_COLOR_NON;
-                if(!color.equals(TEXT_COLOR_RED)) {
-                    color = rollingDeltaSum > 0 ? TEXT_COLOR_BLUE : TEXT_COLOR_NON;
-                }
-                boolean exceedsMovementThreshold = Math.abs(rollingDeltaSum) >= properties.maximalDeltaPrice();
-
-
-                QuoteEntity quoteEntity = quoteMapper.toEntity(quote);
-                double delta = quote.percentChange() - latestPersistedChange.getPercentChange();
-                quoteEntity.setDelta(delta);
+                String color = defineColor(rollingDeltaSum);
+                //Check whether the rolling price in absolute value reach maximal value.
+                boolean exceedsMovementThreshold = Math.abs(Utils.roundDouble(rollingDeltaSum, 2)) >= properties.maximalRollingPrice();
+                /// Persist new Quote
                 quoteRepository.save(quoteEntity);
 
                 boolean haveSendFlag = false;
                 String messageText = null;
-                if (exceedsMovementThreshold /*exceedsMovementThreshold && exceedsAbsoluteThreshold*/) {
+                if (Math.abs(delta) >= QUOTE_CHANGE_EPSILON && exceedsMovementThreshold /*exceedsMovementThreshold && exceedsAbsoluteThreshold*/) {
                     System.out.printf(
                             color +
                                     "%s (%s) current: %.2f%% | previous: %.2f%% | delta: %.2f%% | rolling 5: %.2f%%"
@@ -155,8 +169,8 @@ private static final Set<String> YAHOO_EU_SUFFIXES = Set.of(
                     lastPersistedChanges.forEach(q -> q.setSend(true));
                     haveSendFlag = true;
                 }
-                recordDashboardResult(quote, watchlistItem, latestPersistedChange.getPercentChange(), delta, rollingDeltaSum, haveSendFlag, messageText);
-                if(!haveSendFlag && persistedHistory.unsent() && lastPersistedChanges.size() >=  MAX_ROLLING_SIZE) {
+                recordDashboardResult(quote, watchlistItem, latestPersistedChange.getPercentChange(), delta, rollingDeltaSum, haveSendFlag, messageText, lastPersistedChanges);
+                if(!haveSendFlag && persistedHistory.unsent() && lastPersistedChanges.size() >=  properties.maximalRollingSize()) {
                     //Can be set to true afater send message
                     lastPersistedChanges.stream().filter(
                             q ->q.isSend()==false).forEach(q -> q.setSend(true));
@@ -171,15 +185,23 @@ private static final Set<String> YAHOO_EU_SUFFIXES = Set.of(
         log.info("End scanning market...");
     }
 
+    private static @NonNull String defineColor(double rollingDeltaSum) {
+        String color = rollingDeltaSum < 0?TEXT_COLOR_RED :TEXT_COLOR_NON;
+        if(!color.equals(TEXT_COLOR_RED)) {
+            color = rollingDeltaSum > 0 ? TEXT_COLOR_BLUE : TEXT_COLOR_NON;
+        }
+        return color;
+    }
+
     private PersistedHistory persistedHistory(String symbol) {
-        List<QuoteEntity> unsentChanges = quoteRepository.findBySymbolAndSendIsFalseOrderByIdDesc(
-                symbol, PageRequest.of(0, MAX_ROLLING_SIZE));
+        List<QuoteEntity> unsentChanges = quoteRepository.findBySymbolAndSendIsFalseOrderByCreatedDesc(
+                symbol, PageRequest.of(0, properties.maximalRollingSize()));
         if (unsentChanges != null && !unsentChanges.isEmpty()) {
             return new PersistedHistory(unsentChanges, true);
         }
 
-        List<QuoteEntity> recentChanges = quoteRepository.findBySymbolOrderByIdDesc(
-                symbol, PageRequest.of(0, MAX_ROLLING_SIZE));
+        List<QuoteEntity> recentChanges = quoteRepository.findBySymbolOrderByCreatedDesc(
+                symbol, PageRequest.of(0, properties.maximalRollingSize()));
         if (recentChanges == null) {
             return new PersistedHistory(List.of(), false);
         }
@@ -190,6 +212,20 @@ private static final Set<String> YAHOO_EU_SUFFIXES = Set.of(
     private record PersistedHistory(List<QuoteEntity> changes, boolean unsent) {
     }
 
+    private boolean hasQuoteChanged(Quote quote, QuoteEntity latestPersistedChange) {
+        return changed(quote.current(), latestPersistedChange.getCurrent())
+                || changed(quote.percentChange(), latestPersistedChange.getPercentChange())
+                || changed(quote.change(), latestPersistedChange.getChange())
+                || changed(quote.high(), latestPersistedChange.getHigh())
+                || changed(quote.low(), latestPersistedChange.getLow())
+                || changed(quote.open(), latestPersistedChange.getOpen())
+                || changed(quote.previousClose(), latestPersistedChange.getPreviousClose());
+    }
+
+    private boolean changed(double left, double right) {
+        return Math.abs(left - right) >= QUOTE_CHANGE_EPSILON;
+    }
+
     private void recordDashboardResult(
             Quote quote,
             WatchlistItem watchlistItem,
@@ -197,7 +233,8 @@ private static final Set<String> YAHOO_EU_SUFFIXES = Set.of(
             double delta,
             double rollingDelta,
             boolean alert,
-            String messageText
+            String messageText,
+            List<QuoteEntity> changes
     ) {
         marketDashboardService.recordResult(new MarketScanResult(
                 quote.symbol(),
@@ -211,7 +248,7 @@ private static final Set<String> YAHOO_EU_SUFFIXES = Set.of(
                 previousPercent,
                 delta,
                 rollingDelta,
-                MAX_ROLLING_SIZE,
+                changes.size(),
                 quote.current(),
                 quote.low(),
                 quote.high(),
@@ -288,10 +325,6 @@ private static final Set<String> YAHOO_EU_SUFFIXES = Set.of(
     }
 
     private Quote getQuoteForProvider(String symbol) {
-        if (isYahooEuropeSymbol(symbol)) {
-            return yahooFinanceClient.getQuote(symbol);
-        }
-
         return yahooFinanceClient.getQuote(symbol);
     }
 

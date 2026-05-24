@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Market Bot Dashboard</title>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<header class="app-header">
+    <div>
+        <h1>Market Bot</h1>
+        <p id="scanStatus">Waiting for market data</p>
+    </div>
+    <button id="scanButton" type="button">Scan</button>
+</header>
+
+<main>
+    <section class="summary-grid" aria-label="Market movement summary">
+        <div class="summary-item">
+            <span>Top Rolling Up</span>
+            <strong id="topRollingUp">-</strong>
+        </div>
+        <div class="summary-item">
+            <span>Top Rolling Down</span>
+            <strong id="topRollingDown">-</strong>
+        </div>
+        <div class="summary-item">
+            <span>Top Delta Up</span>
+            <strong id="topDeltaUp">-</strong>
+        </div>
+        <div class="summary-item">
+            <span>Top Delta Down</span>
+            <strong id="topDeltaDown">-</strong>
+        </div>
+    </section>
+
+    <section class="table-shell" aria-label="Watchlist">
+        <table>
+            <thead>
+            <tr>
+                <th>Symbol</th>
+                <th>Name</th>
+                <th>Region</th>
+                <th>Price</th>
+                <th>Day</th>
+                <th>Delta</th>
+                <th>Rolling</th>
+                <th>Status</th>
+            </tr>
+            </thead>
+            <tbody id="marketRows">
+            <tr>
+                <td colspan="8" class="empty">No market data yet</td>
+            </tr>
+            </tbody>
+        </table>
+    </section>
+</main>
+
+<dialog id="chartDialog">
+    <div class="dialog-header">
+        <div>
+            <h2 id="chartTitle">Chart</h2>
+            <p id="chartSubtitle">-</p>
+        </div>
+        <button id="closeChart" type="button" aria-label="Close chart">x</button>
+    </div>
+
+    <div class="range-tabs" role="tablist" aria-label="Chart range">
+        <button type="button" data-range="today" class="active">Today</button>
+        <button type="button" data-range="week">Week</button>
+        <button type="button" data-range="month">Month</button>
+        <button type="button" data-range="year">Year</button>
+    </div>
+
+    <div class="chart-wrap">
+        <canvas id="chartCanvas" width="960" height="420"></canvas>
+        <div id="chartEmpty" class="chart-empty" hidden>No saved data for this range</div>
+    </div>
+
+    <div class="chart-stats">
+        <span id="statPrice">Price: -</span>
+        <span id="statChange">Day: -</span>
+        <span id="statRange">Range: -</span>
+        <span id="statPrevious">Previous close: -</span>
+    </div>
+</dialog>
+
+<script src="/dashboard.js"></script>
+</body>
+</html>

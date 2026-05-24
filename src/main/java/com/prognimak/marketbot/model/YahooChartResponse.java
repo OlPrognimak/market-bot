@@ -12,6 +12,7 @@ public record YahooChartResponse(Chart chart) {
 
     public record Result(
             Meta meta,
+            List<Long> timestamp,
             Indicators indicators
     ) {
     }

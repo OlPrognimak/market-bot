@@ -3,10 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { formatDateTime } from "@/lib/format";
 import { ConnectionStatus } from "./ConnectionStatus";
+import { MarketChartDialog } from "./MarketChartDialog";
 import { MarketResultsTable } from "./MarketResultsTable";
 import { SummaryStrip } from "./SummaryStrip";
 import { useMarketDashboardSocket } from "../hooks/useMarketDashboardSocket";
-import type { SortKey } from "../types/market-dashboard";
+import type { MarketScanResult, SortKey } from "../types/market-dashboard";
 import { sortMarketResults } from "../utils/sortMarketResults";
 
 export function DashboardPage() {
@@ -19,6 +20,7 @@ export function DashboardPage() {
   const [exchangeFilter, setExchangeFilter] = useState("ALL");
   const [actionError, setActionError] = useState<string | null>(null);
   const [manualScanBusy, setManualScanBusy] = useState(false);
+  const [chartSymbol, setChartSymbol] = useState<string | null>(null);
 
   useEffect(() => {
     fetchSnapshot().catch((err: unknown) => {
@@ -70,6 +72,14 @@ export function DashboardPage() {
       exchanges: uniqueValues(rawResults.map((result) => result.exchange))
     };
   }, [snapshot?.results]);
+
+  const chartResult = useMemo(() => {
+    if (!chartSymbol) {
+      return null;
+    }
+
+    return snapshot?.results.find((result) => result.symbol === chartSymbol) ?? null;
+  }, [chartSymbol, snapshot?.results]);
 
   const manualScanEnabled = snapshot?.triggerMode === "BOTH" || snapshot?.triggerMode === "FRONTEND_TRIGGERED";
 
@@ -150,7 +160,8 @@ export function DashboardPage() {
 
       {actionError ? <div className="error-banner">{actionError}</div> : null}
 
-      <MarketResultsTable results={results} />
+      <MarketResultsTable results={results} onOpenChart={(result) => setChartSymbol(result.symbol)} />
+      <MarketChartDialog result={chartResult} onClose={() => setChartSymbol(null)} />
     </main>
   );
 }

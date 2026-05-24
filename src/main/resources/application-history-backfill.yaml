@@ -1,0 +1,12 @@
+spring:
+  main:
+    web-application-type: none
+
+market-bot:
+  history:
+    from: ${MARKET_BOT_HISTORY_FROM:}
+    to: ${MARKET_BOT_HISTORY_TO:}
+    symbols: ${MARKET_BOT_HISTORY_SYMBOLS:}
+    source: ${MARKET_BOT_HISTORY_SOURCE:YAHOO}
+    interval-type: ${MARKET_BOT_HISTORY_INTERVAL_TYPE:DAILY}
+    request-delay-ms: ${MARKET_BOT_HISTORY_REQUEST_DELAY_MS:500}

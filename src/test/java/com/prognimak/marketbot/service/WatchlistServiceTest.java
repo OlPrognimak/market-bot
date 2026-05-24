@@ -100,7 +100,8 @@ class WatchlistServiceTest {
                 -0.4,
                 0.4,
                 30_000,
-                0.8
+                0.8,
+                5
         );
     }
 }

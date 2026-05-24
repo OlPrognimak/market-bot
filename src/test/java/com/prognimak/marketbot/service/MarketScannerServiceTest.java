@@ -78,9 +78,9 @@ class MarketScannerServiceTest {
         QuoteEntity entity = entity("AAPL", 1.25);
 
         when(yahooFinanceClient.getQuote("AAPL")).thenReturn(quote);
-        when(quoteRepository.findBySymbolAndSendIsFalseOrderByIdDesc(eq("AAPL"), any(Pageable.class)))
+        when(quoteRepository.findBySymbolAndSendIsFalseOrderByCreatedDesc(eq("AAPL"), any(Pageable.class)))
                 .thenReturn(List.of());
-        when(quoteRepository.findBySymbolOrderByIdDesc(eq("AAPL"), any(Pageable.class)))
+        when(quoteRepository.findBySymbolOrderByCreatedDesc(eq("AAPL"), any(Pageable.class)))
                 .thenReturn(List.of());
         when(quoteMapper.toEntity(quote)).thenReturn(entity);
 
@@ -90,7 +90,7 @@ class MarketScannerServiceTest {
         verify(quoteRepository).save(captor.capture());
 
         assertAll(
-                () -> assertEquals(1.25, captor.getValue().getDelta()),
+                () -> assertEquals(0, captor.getValue().getDelta()),
                 () -> assertFalse(captor.getValue().isSend())
         );
         verifyNoInteractions(finnhubClient, telegramClient);
@@ -103,9 +103,9 @@ class MarketScannerServiceTest {
         QuoteEntity persisted = entity("AAPL", 1.0);
 
         when(yahooFinanceClient.getQuote("AAPL")).thenReturn(quote);
-        when(quoteRepository.findBySymbolAndSendIsFalseOrderByIdDesc(eq("AAPL"), any(Pageable.class)))
+        when(quoteRepository.findBySymbolAndSendIsFalseOrderByCreatedDesc(eq("AAPL"), any(Pageable.class)))
                 .thenReturn(List.of());
-        when(quoteRepository.findBySymbolOrderByIdDesc(eq("AAPL"), any(Pageable.class)))
+        when(quoteRepository.findBySymbolOrderByCreatedDesc(eq("AAPL"), any(Pageable.class)))
                 .thenReturn(List.of(persisted));
         when(quoteMapper.toQuotes(List.of(persisted))).thenReturn(new ArrayList<>(List.of(quote("AAPL", 1.0))));
         when(quoteMapper.toEntity(quote)).thenReturn(entity);
@@ -131,9 +131,9 @@ class MarketScannerServiceTest {
         when(yahooFinanceClient.getQuote("AAPL")).thenReturn(firstQuote, secondQuote);
         when(quoteMapper.toEntity(firstQuote)).thenReturn(firstEntity);
         when(quoteMapper.toEntity(secondQuote)).thenReturn(secondEntity);
-        when(quoteRepository.findBySymbolAndSendIsFalseOrderByIdDesc(eq("AAPL"), any(Pageable.class)))
+        when(quoteRepository.findBySymbolAndSendIsFalseOrderByCreatedDesc(eq("AAPL"), any(Pageable.class)))
                 .thenReturn(List.of(), List.of(persisted));
-        when(quoteRepository.findBySymbolOrderByIdDesc(eq("AAPL"), any(Pageable.class)))
+        when(quoteRepository.findBySymbolOrderByCreatedDesc(eq("AAPL"), any(Pageable.class)))
                 .thenReturn(List.of());
         when(quoteMapper.toQuotes(List.of(persisted))).thenReturn(new ArrayList<>(List.of(quote("AAPL", 1.0))));
 
@@ -162,9 +162,9 @@ class MarketScannerServiceTest {
         when(yahooFinanceClient.getQuote("AAPL")).thenReturn(firstQuote, secondQuote);
         when(quoteMapper.toEntity(firstQuote)).thenReturn(firstEntity);
         when(quoteMapper.toEntity(secondQuote)).thenReturn(secondEntity);
-        when(quoteRepository.findBySymbolAndSendIsFalseOrderByIdDesc(eq("AAPL"), any(Pageable.class)))
+        when(quoteRepository.findBySymbolAndSendIsFalseOrderByCreatedDesc(eq("AAPL"), any(Pageable.class)))
                 .thenReturn(List.of(), persistedHistoryNewestFirst);
-        when(quoteRepository.findBySymbolOrderByIdDesc(eq("AAPL"), any(Pageable.class)))
+        when(quoteRepository.findBySymbolOrderByCreatedDesc(eq("AAPL"), any(Pageable.class)))
                 .thenReturn(List.of());
         when(quoteMapper.toQuotes(persistedHistoryNewestFirst)).thenReturn(new ArrayList<>(List.of(
                 quote("AAPL", 1.0),
@@ -212,9 +212,9 @@ class MarketScannerServiceTest {
         when(yahooFinanceClient.getQuote("AAPL")).thenReturn(firstQuote, secondQuote);
         when(quoteMapper.toEntity(firstQuote)).thenReturn(firstEntity);
         when(quoteMapper.toEntity(secondQuote)).thenReturn(secondEntity);
-        when(quoteRepository.findBySymbolAndSendIsFalseOrderByIdDesc(eq("AAPL"), any(Pageable.class)))
+        when(quoteRepository.findBySymbolAndSendIsFalseOrderByCreatedDesc(eq("AAPL"), any(Pageable.class)))
                 .thenReturn(List.of(), persistedHistory);
-        when(quoteRepository.findBySymbolOrderByIdDesc(eq("AAPL"), any(Pageable.class)))
+        when(quoteRepository.findBySymbolOrderByCreatedDesc(eq("AAPL"), any(Pageable.class)))
                 .thenReturn(List.of());
         when(quoteMapper.toQuotes(persistedHistory)).thenReturn(new ArrayList<>(List.of(
                 quote("AAPL", 1.0),
@@ -276,9 +276,9 @@ class MarketScannerServiceTest {
         when(yahooFinanceClient.getQuote("AAPL")).thenReturn(firstQuote, secondQuote);
         when(quoteMapper.toEntity(firstQuote)).thenReturn(firstEntity);
         when(quoteMapper.toEntity(secondQuote)).thenReturn(secondEntity);
-        when(quoteRepository.findBySymbolAndSendIsFalseOrderByIdDesc(eq("AAPL"), any(Pageable.class)))
+        when(quoteRepository.findBySymbolAndSendIsFalseOrderByCreatedDesc(eq("AAPL"), any(Pageable.class)))
                 .thenReturn(List.of());
-        when(quoteRepository.findBySymbolOrderByIdDesc(eq("AAPL"), any(Pageable.class)))
+        when(quoteRepository.findBySymbolOrderByCreatedDesc(eq("AAPL"), any(Pageable.class)))
                 .thenReturn(List.of());
 
         service.scanMarket();
@@ -300,7 +300,8 @@ class MarketScannerServiceTest {
                 -0.4,
                 0.4,
                 30_000,
-                maximalDeltaPrice
+                maximalDeltaPrice,
+                5
         );
     }
 

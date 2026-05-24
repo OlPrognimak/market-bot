@@ -57,4 +57,12 @@ public class AbstractEntity {
         this.modified = Instant.now();
     }
 
+    public Instant getCreated() {
+        return created;
+    }
+
+    public Instant getModified() {
+        return modified;
+    }
+
 }

@@ -3,9 +3,10 @@ import type { MarketScanResult } from "../types/market-dashboard";
 
 type Props = {
   results: MarketScanResult[];
+  onOpenChart: (result: MarketScanResult) => void;
 };
 
-export function MarketResultsTable({ results }: Props) {
+export function MarketResultsTable({ results, onOpenChart }: Props) {
   if (results.length === 0) {
     return <div className="empty-state">No scan results yet.</div>;
   }
@@ -31,7 +32,9 @@ export function MarketResultsTable({ results }: Props) {
           {results.map((result) => (
             <tr key={result.symbol} className={`row-${result.direction.toLowerCase()} ${result.alert ? "row-alert" : ""}`}>
               <td>
-                <strong>{result.symbol}</strong>
+                <button type="button" className="symbol-link" onClick={() => onOpenChart(result)} aria-label={`Open chart for ${result.symbol}`}>
+                  {result.symbol}
+                </button>
               </td>
               <td className="metadata-cell" tabIndex={0} aria-label={metadataText(result)}>
                 {companyLabel(result)}

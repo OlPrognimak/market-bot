@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import java.util.List;
+import java.util.Objects;
 
 import static com.prognimak.marketbot.util.Utils.roundDouble;
 
@@ -28,8 +29,8 @@ public class YahooFinanceClient implements MarketDataProvider {
                         .scheme("https")
                         .host("query1.finance.yahoo.com")
                         .path("/v8/finance/chart/{symbol}")
-                        .queryParam("range", "5d")
-                        .queryParam("interval", "1d")
+                        .queryParam("range", "1d")
+                        .queryParam("interval", "1m")
                         .build(symbol)
                 )
                 .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
@@ -66,18 +67,21 @@ public class YahooFinanceClient implements MarketDataProvider {
         YahooChartResponse.QuoteData quote = indicators.quote().getFirst();
         double current = valueOrLastClose(meta.regularMarketPrice(), quote.close());
         int latestIndex = latestNumericIndex(quote.close());
-        double previousClose = previousClose(meta.previousClose(), meta.chartPreviousClose(), quote.close(), latestIndex, current);
+        double previousClose = previousClose(meta.previousClose(), meta.chartPreviousClose(), current);
         double change = current - previousClose;
         double percentChange = previousClose == 0 ? 0 : (change / previousClose) * 100;
+        double dayHigh = maxOrFallback(quote.high(), current);
+        double dayLow = minOrFallback(quote.low(), current);
+        double dayOpen = firstOrFallback(quote.open(), current);
 
         return new Quote(
                 meta.symbol() == null ? requestedSymbol : meta.symbol(),
                 roundDouble(current, 2),
                 roundDouble(change, 2),
                 roundDouble(percentChange, 2),
-                roundDouble(valueAtOrFallback(quote.high(), latestIndex, current), 2),
-                roundDouble(valueAtOrFallback(quote.low(), latestIndex, current), 2),
-                roundDouble(valueAtOrFallback(quote.open(), latestIndex, current), 2),
+                roundDouble(dayHigh, 2),
+                roundDouble(dayLow, 2),
+                roundDouble(dayOpen, 2),
                 roundDouble(previousClose, 2)
         );
     }
@@ -98,36 +102,14 @@ public class YahooFinanceClient implements MarketDataProvider {
     private double previousClose(
             Double metaPreviousClose,
             Double chartPreviousClose,
-            List<Double> closes,
-            int latestIndex,
             double fallback
     ) {
         if (metaPreviousClose != null) {
             return metaPreviousClose;
         }
 
-        if (closes != null) {
-            for (int i = latestIndex - 1; i >= 0; i--) {
-                Double value = closes.get(i);
-                if (value != null) {
-                    return value;
-                }
-            }
-        }
-
         if (chartPreviousClose != null) {
             return chartPreviousClose;
-        }
-
-        return fallback;
-    }
-
-    private double valueAtOrFallback(List<Double> values, int index, double fallback) {
-        if (values != null && index >= 0 && index < values.size()) {
-            Double value = values.get(index);
-            if (value != null) {
-                return value;
-            }
         }
 
         return fallback;
@@ -145,5 +127,40 @@ public class YahooFinanceClient implements MarketDataProvider {
         }
 
         return -1;
+    }
+
+    private double firstOrFallback(List<Double> values, double fallback) {
+        if (values == null) {
+            return fallback;
+        }
+
+        return values.stream()
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElse(fallback);
+    }
+
+    private double minOrFallback(List<Double> values, double fallback) {
+        if (values == null) {
+            return fallback;
+        }
+
+        return values.stream()
+                .filter(Objects::nonNull)
+                .mapToDouble(Double::doubleValue)
+                .min()
+                .orElse(fallback);
+    }
+
+    private double maxOrFallback(List<Double> values, double fallback) {
+        if (values == null) {
+            return fallback;
+        }
+
+        return values.stream()
+                .filter(Objects::nonNull)
+                .mapToDouble(Double::doubleValue)
+                .max()
+                .orElse(fallback);
     }
 }
