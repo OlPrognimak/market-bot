@@ -1,9 +1,21 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import {
+  ColorType,
+  createChart,
+  LineSeries,
+  LineStyle,
+  LineType,
+  type AutoscaleInfo,
+  type IChartApi,
+  type ISeriesApi,
+  type LineData,
+  type Time
+} from "lightweight-charts";
 import { backendHttpUrl } from "@/lib/websocket";
 import { formatPercent, formatPrice } from "@/lib/format";
-import type { MarketChartPoint, MarketChartRange, MarketChartResponse, MarketScanResult } from "../types/market-dashboard";
+import type { MarketChartRange, MarketChartResponse, MarketScanResult } from "../types/market-dashboard";
 
 type Props = {
   result: MarketScanResult | null;
@@ -11,9 +23,10 @@ type Props = {
 };
 
 const ranges: MarketChartRange[] = ["today", "week", "month", "year"];
+const CHART_TIME_ZONE = "Europe/Berlin";
 
 export function MarketChartDialog({ result, onClose }: Props) {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const chartContainerRef = useRef<HTMLDivElement | null>(null);
   const [range, setRange] = useState<MarketChartRange>("today");
   const [chart, setChart] = useState<MarketChartResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -67,11 +80,84 @@ export function MarketChartDialog({ result, onClose }: Props) {
   }, [range, result?.symbol, result?.updatedAt]);
 
   useEffect(() => {
-    if (!result || !chart) {
+    if (!result || !chart || !chartContainerRef.current) {
       return;
     }
 
-    drawChart(canvasRef.current, chart.points);
+    const chartPoints = toLineData(chart);
+    const chartApi = createChart(chartContainerRef.current, {
+      autoSize: true,
+      layout: {
+        background: { type: ColorType.Solid, color: "#ffffff" },
+        textColor: "#5f6f7d",
+        fontFamily: "Arial, Helvetica, sans-serif"
+      },
+      grid: {
+        vertLines: { color: "#eef2f5" },
+        horzLines: { color: "#eef2f5" }
+      },
+      rightPriceScale: {
+        borderColor: "#d9e0e6"
+      },
+      timeScale: {
+        borderColor: "#d9e0e6",
+        timeVisible: true,
+        secondsVisible: false,
+        tickMarkFormatter: (time: Time) => formatChartTime(time)
+      },
+      localization: {
+        locale: "de-DE",
+        timeFormatter: (time: Time) => formatChartTime(time)
+      },
+      crosshair: {
+        horzLine: { color: "#687783" },
+        vertLine: { color: "#687783" }
+      }
+    });
+
+    const latestValue = chartPoints.at(-1)?.value ?? 0;
+    const lineColor = latestValue >= 0 ? "#147a46" : "#b42318";
+    const series = chartApi.addSeries(LineSeries, {
+      color: lineColor,
+      lineWidth: 2,
+      lineType: LineType.Curved,
+      pointMarkersVisible: false,
+      lastValueVisible: true,
+      priceLineVisible: true,
+      priceFormat: {
+        type: "custom",
+        formatter: (value: number) => formatPercent(value)
+      },
+      autoscaleInfoProvider: (original: () => AutoscaleInfo | null) => {
+        const result = original();
+        if (result === null || result.priceRange === null) {
+          return null;
+        }
+
+        return {
+          ...result,
+          priceRange: {
+            minValue: Math.min(result.priceRange.minValue, 0),
+            maxValue: Math.max(result.priceRange.maxValue, 0)
+          }
+        };
+      }
+    }) as ISeriesApi<"Line", Time>;
+
+    series.setData(chartPoints);
+    series.createPriceLine({
+      price: 0,
+      color: "#4f5f6b",
+      lineWidth: 2,
+      lineStyle: LineStyle.Solid,
+      axisLabelVisible: true,
+      title: "0.00%"
+    });
+    chartApi.timeScale().fitContent();
+
+    return () => {
+      destroyChart(chartApi);
+    };
   }, [chart, result]);
 
   if (!result) {
@@ -106,7 +192,7 @@ export function MarketChartDialog({ result, onClose }: Props) {
         </div>
 
         <div className="chart-panel">
-          <canvas ref={canvasRef} width={960} height={420} />
+          <div ref={chartContainerRef} className="lightweight-chart" />
           {loading ? <div className="chart-overlay">Loading chart</div> : null}
           {!loading && error ? <div className="chart-overlay error">{error}</div> : null}
           {!loading && !error && points.length === 0 ? <div className="chart-overlay">No saved data for this range</div> : null}
@@ -155,8 +241,23 @@ function formatChartDate(value: string): string {
   return new Intl.DateTimeFormat("en-US", {
     month: "short",
     day: "2-digit",
-    year: "numeric"
+    year: "numeric",
+    timeZone: CHART_TIME_ZONE
   }).format(new Date(value));
+}
+
+function formatChartTime(value: Time): string {
+  if (typeof value !== "number") {
+    return value.toString();
+  }
+
+  return new Intl.DateTimeFormat("de-DE", {
+    timeZone: CHART_TIME_ZONE,
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(new Date(value * 1000));
 }
 
 function toneClass(value: number): string {
@@ -169,96 +270,20 @@ function toneClass(value: number): string {
   return "value-neutral";
 }
 
-function drawChart(canvas: HTMLCanvasElement | null, points: MarketChartPoint[]) {
-  if (!canvas) {
-    return;
-  }
+function toLineData(chart: MarketChartResponse): LineData<Time>[] {
+  const pointsByTime = new Map<number, LineData<Time>>();
 
-  const context = canvas.getContext("2d");
-  if (!context) {
-    return;
-  }
-
-  const rect = canvas.getBoundingClientRect();
-  const ratio = window.devicePixelRatio || 1;
-  canvas.width = Math.max(1, Math.floor(rect.width * ratio));
-  canvas.height = Math.max(1, Math.floor(rect.height * ratio));
-  context.scale(ratio, ratio);
-
-  const width = rect.width;
-  const height = rect.height;
-  context.clearRect(0, 0, width, height);
-
-  if (points.length === 0) {
-    return;
-  }
-
-  const padding = { top: 18, right: 58, bottom: 36, left: 72 };
-  const values = points.map((point) => point.percentChange);
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const rawMin = Math.min(min, 0);
-  const rawMax = Math.max(max, 0);
-  const span = Math.max(rawMax - rawMin, 0.01);
-  const yMin = rawMin - span * 0.15;
-  const yMax = rawMax + span * 0.15;
-  const plotWidth = width - padding.left - padding.right;
-  const plotHeight = height - padding.top - padding.bottom;
-  const latestPercent = values.at(-1)!;
-  const lineColor = latestPercent >= 0 ? "#147a46" : "#b42318";
-
-  context.font = "12px Arial, sans-serif";
-  context.lineWidth = 1;
-  context.strokeStyle = "#d9e0e6";
-  context.fillStyle = "#5f6f7d";
-
-  for (let index = 0; index <= 4; index += 1) {
-    const y = padding.top + (plotHeight / 4) * index;
-    context.beginPath();
-    context.moveTo(padding.left, y);
-    context.lineTo(width - padding.right, y);
-    context.stroke();
-    const label = yMax - ((yMax - yMin) / 4) * index;
-    context.fillText(formatPercent(label), width - padding.right + 8, y + 4);
-  }
-
-  const zeroY = padding.top + plotHeight - ((0 - yMin) / (yMax - yMin)) * plotHeight;
-  context.beginPath();
-  context.moveTo(padding.left, zeroY);
-  context.lineTo(width - padding.right, zeroY);
-  context.strokeStyle = "#4f5f6b";
-  context.lineWidth = 2.5;
-  context.stroke();
-  context.fillStyle = "#687783";
-  context.fillText("0.00%", 8, zeroY + 4);
-
-  context.strokeStyle = lineColor;
-  context.lineWidth = 2;
-  context.beginPath();
-
-  points.forEach((point, index) => {
-    const x = padding.left + (points.length === 1 ? plotWidth / 2 : (plotWidth / (points.length - 1)) * index);
-    const y = padding.top + plotHeight - ((point.percentChange - yMin) / (yMax - yMin)) * plotHeight;
-    if (index === 0) {
-      context.moveTo(x, y);
-    } else {
-      context.lineTo(x, y);
-    }
-  });
-  context.stroke();
-
-  context.fillStyle = lineColor;
-  points.forEach((point, index) => {
-    const x = padding.left + (points.length === 1 ? plotWidth / 2 : (plotWidth / (points.length - 1)) * index);
-    const y = padding.top + plotHeight - ((point.percentChange - yMin) / (yMax - yMin)) * plotHeight;
-    context.beginPath();
-    context.arc(x, y, 3, 0, Math.PI * 2);
-    context.fill();
+  chart.points.forEach((point) => {
+    const time = Math.floor(new Date(point.time).getTime() / 1000);
+    pointsByTime.set(time, {
+      time: time as Time,
+      value: point.percentChange
+    });
   });
 
-  context.fillStyle = "#5f6f7d";
-  const first = new Date(points[0].time).toLocaleString();
-  const last = new Date(points[points.length - 1].time).toLocaleString();
-  context.fillText(first, padding.left, height - 10);
-  context.fillText(last, width - padding.right - context.measureText(last).width, height - 10);
+  return Array.from(pointsByTime.values()).sort((left, right) => Number(left.time) - Number(right.time));
+}
+
+function destroyChart(chart: IChartApi) {
+  chart.remove();
 }

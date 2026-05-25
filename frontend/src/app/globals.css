@@ -416,7 +416,8 @@ tbody tr:hover {
   padding: 16px 18px 10px;
 }
 
-.chart-panel canvas {
+.chart-panel canvas,
+.lightweight-chart {
   display: block;
   width: 100%;
   height: 420px;
@@ -463,7 +464,8 @@ tbody tr:hover {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .chart-panel canvas {
+  .chart-panel canvas,
+  .lightweight-chart {
     height: 320px;
   }
 }
