@@ -24,6 +24,7 @@ config/watchlist.*
 *.iml
 *.ipr
 .mvn
+.run
 
 ### NetBeans ###
 /nbproject/private/
