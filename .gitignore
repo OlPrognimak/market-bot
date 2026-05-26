@@ -23,7 +23,7 @@ config/watchlist.*
 *.iws
 *.iml
 *.ipr
-.mvn
+.run
 
 ### NetBeans ###
 /nbproject/private/
