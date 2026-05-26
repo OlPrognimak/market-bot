@@ -1,16 +1,17 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { backendHttpUrl, backendWsUrl } from "@/lib/websocket";
+import { authFetch } from "@/lib/auth";
+import { backendWsUrl } from "@/lib/websocket";
 import type { MarketDashboardSnapshot } from "../types/market-dashboard";
 
 type ConnectionState = "connecting" | "connected" | "reconnecting" | "disconnected";
 
-export function useMarketDashboardSocket() {
+export function useMarketDashboardSocket(token: string) {
   const [snapshot, setSnapshot] = useState<MarketDashboardSnapshot | null>(null);
   const [connectionState, setConnectionState] = useState<ConnectionState>("connecting");
   const [error, setError] = useState<string | null>(null);
-  const wsUrl = useMemo(() => backendWsUrl(), []);
+  const wsUrl = useMemo(() => backendWsUrl(token), [token]);
 
   useEffect(() => {
     let socket: WebSocket | null = null;
@@ -56,20 +57,14 @@ export function useMarketDashboardSocket() {
   }, [wsUrl]);
 
   const fetchSnapshot = async () => {
-    const response = await fetch(`${backendHttpUrl()}/api/dashboard/snapshot`);
-    if (!response.ok) {
-      throw new Error(`Snapshot request failed with ${response.status}`);
-    }
+    const response = await authFetch(token, "/api/dashboard/snapshot");
     setSnapshot((await response.json()) as MarketDashboardSnapshot);
   };
 
   const triggerScan = async () => {
-    const response = await fetch(`${backendHttpUrl()}/api/dashboard/scan`, {
+    const response = await authFetch(token, "/api/dashboard/scan", {
       method: "POST"
     });
-    if (!response.ok) {
-      throw new Error(`Scan request failed with ${response.status}`);
-    }
     setSnapshot((await response.json()) as MarketDashboardSnapshot);
   };
 

@@ -4,6 +4,14 @@ app:
     username: ${APP_DATASOURCE_USERNAME:test}
     password: ${APP_DATASOURCE_PASSWORD:test}
     configuration:
+  security:
+    jwt-secret: ${APP_SECURITY_JWT_SECRET:change-this-secret-before-production}
+    jwt-expiration-minutes: ${APP_SECURITY_JWT_EXPIRATION_MINUTES:480}
+    admin:
+      username: ${APP_SECURITY_ADMIN_USERNAME:admin}
+      password: ${APP_SECURITY_ADMIN_PASSWORD:admin123}
+      email: ${APP_SECURITY_ADMIN_EMAIL:admin@market-bot.local}
+      display-name: ${APP_SECURITY_ADMIN_DISPLAY_NAME:Administrator}
 
 
 spring:
@@ -75,4 +83,3 @@ server:
       pattern: '%h %l %u %t "%r" %s %b %D'
       prefix: access
       suffix: .log
-
