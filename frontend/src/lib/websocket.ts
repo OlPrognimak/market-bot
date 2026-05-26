@@ -4,11 +4,14 @@ export function backendHttpUrl(): string {
   return process.env.NEXT_PUBLIC_MARKET_BOT_API_URL ?? DEFAULT_BACKEND_URL;
 }
 
-export function backendWsUrl(): string {
+export function backendWsUrl(token?: string): string {
   const httpUrl = backendHttpUrl();
   const url = new URL(httpUrl);
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
   url.pathname = "/ws/market-dashboard";
   url.search = "";
+  if (token) {
+    url.searchParams.set("access_token", token);
+  }
   return url.toString();
 }

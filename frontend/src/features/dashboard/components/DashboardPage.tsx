@@ -9,9 +9,17 @@ import { SummaryStrip } from "./SummaryStrip";
 import { useMarketDashboardSocket } from "../hooks/useMarketDashboardSocket";
 import type { MarketScanResult, SortKey } from "../types/market-dashboard";
 import { sortMarketResults } from "../utils/sortMarketResults";
+import type { AppUser } from "@/features/users/types";
 
-export function DashboardPage() {
-  const { snapshot, connectionState, error, fetchSnapshot, triggerScan } = useMarketDashboardSocket();
+type Props = {
+  token: string;
+  currentUser: AppUser;
+  onLogout: () => void;
+  onOpenUsers: () => void;
+};
+
+export function DashboardPage({ token, currentUser, onLogout, onOpenUsers }: Props) {
+  const { snapshot, connectionState, error, fetchSnapshot, triggerScan } = useMarketDashboardSocket(token);
   const [sortKey, setSortKey] = useState<SortKey>("backend");
   const [query, setQuery] = useState("");
   const [regionFilter, setRegionFilter] = useState("ALL");
@@ -105,6 +113,17 @@ export function DashboardPage() {
         <div className="header-status">
           <ConnectionStatus state={connectionState} error={error} />
           <span>Last scan: {formatDateTime(snapshot?.lastScanAt)}</span>
+          <span>{currentUser.displayName} ({currentUser.role})</span>
+          <div className="header-actions">
+            {currentUser.role === "ADMIN" ? (
+              <button type="button" className="secondary-button" onClick={onOpenUsers}>
+                Users
+              </button>
+            ) : null}
+            <button type="button" className="secondary-button" onClick={onLogout}>
+              Logout
+            </button>
+          </div>
         </div>
       </header>
 
@@ -161,7 +180,7 @@ export function DashboardPage() {
       {actionError ? <div className="error-banner">{actionError}</div> : null}
 
       <MarketResultsTable results={results} onOpenChart={(result) => setChartSymbol(result.symbol)} />
-      <MarketChartDialog result={chartResult} onClose={() => setChartSymbol(null)} />
+      <MarketChartDialog token={token} result={chartResult} onClose={() => setChartSymbol(null)} />
     </main>
   );
 }

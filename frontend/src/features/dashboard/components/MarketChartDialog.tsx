@@ -13,11 +13,12 @@ import {
   type LineData,
   type Time
 } from "lightweight-charts";
-import { backendHttpUrl } from "@/lib/websocket";
+import { authFetch } from "@/lib/auth";
 import { formatPercent, formatPrice } from "@/lib/format";
 import type { MarketChartRange, MarketChartResponse, MarketScanResult } from "../types/market-dashboard";
 
 type Props = {
+  token: string;
   result: MarketScanResult | null;
   onClose: () => void;
 };
@@ -25,7 +26,7 @@ type Props = {
 const ranges: MarketChartRange[] = ["today", "week", "month", "year"];
 const CHART_TIME_ZONE = "Europe/Berlin";
 
-export function MarketChartDialog({ result, onClose }: Props) {
+export function MarketChartDialog({ token, result, onClose }: Props) {
   const chartContainerRef = useRef<HTMLDivElement | null>(null);
   const [range, setRange] = useState<MarketChartRange>("today");
   const [chart, setChart] = useState<MarketChartResponse | null>(null);
@@ -52,10 +53,7 @@ export function MarketChartDialog({ result, onClose }: Props) {
       setLoading(true);
       setError(null);
       try {
-        const response = await fetch(`${backendHttpUrl()}/api/dashboard/chart/${encodeURIComponent(selectedResult.symbol)}?range=${range}`);
-        if (!response.ok) {
-          throw new Error(`Chart request failed with ${response.status}`);
-        }
+        const response = await authFetch(token, `/api/dashboard/chart/${encodeURIComponent(selectedResult.symbol)}?range=${range}`);
         const payload = (await response.json()) as MarketChartResponse;
         if (!cancelled) {
           setChart(payload);
@@ -77,7 +75,7 @@ export function MarketChartDialog({ result, onClose }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [range, result?.symbol, result?.updatedAt]);
+  }, [range, result?.symbol, result?.updatedAt, token]);
 
   useEffect(() => {
     if (!result || !chart || !chartContainerRef.current) {
