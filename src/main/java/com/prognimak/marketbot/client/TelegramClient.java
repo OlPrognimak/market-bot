@@ -36,6 +36,25 @@ public class TelegramClient {
                 .block();
     }
 
+    public void sendMessage(String botToken, String chatId, String text) {
+        if (botToken == null || botToken.isBlank()) {
+            throw new IllegalStateException("Telegram bot token is not configured");
+        }
+        if (chatId == null || chatId.isBlank()) {
+            throw new IllegalStateException("Telegram chat id is not configured");
+        }
+
+        webClient.post()
+                .uri("/bot{token}/sendMessage", botToken)
+                .bodyValue(new TelegramMessage(
+                        chatId,
+                        text
+                ))
+                .retrieve()
+                .bodyToMono(String.class)
+                .block();
+    }
+
     private record TelegramMessage(
             String chat_id,
             String text

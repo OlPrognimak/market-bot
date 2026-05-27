@@ -5,11 +5,17 @@ import com.prognimak.marketbot.client.TelegramClient;
 import com.prognimak.marketbot.client.YahooFinanceClient;
 import com.prognimak.marketbot.config.AppProperties;
 import com.prognimak.marketbot.dashboard.service.MarketDashboardService;
+import com.prognimak.marketbot.entity.AppUserEntity;
+import com.prognimak.marketbot.entity.AppUserPropertyEntity;
 import com.prognimak.marketbot.entity.QuoteEntity;
 import com.prognimak.marketbot.mapper.QuoteMapper;
 import com.prognimak.marketbot.model.Quote;
 import com.prognimak.marketbot.model.WatchlistItem;
+import com.prognimak.marketbot.notification.NotificationRouter;
 import com.prognimak.marketbot.repository.QuoteRepository;
+import com.prognimak.marketbot.user.model.UserAlertSettings;
+import com.prognimak.marketbot.user.model.UserPropertyType;
+import com.prognimak.marketbot.user.service.UserPropertyService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -54,6 +60,10 @@ class MarketScannerServiceTest {
     private MarketDashboardService marketDashboardService;
     @Mock
     private WatchlistService watchlistService;
+    @Mock
+    private UserPropertyService userPropertyService;
+    @Mock
+    private NotificationRouter notificationRouter;
 
     private MarketScannerService service;
 
@@ -67,7 +77,9 @@ class MarketScannerServiceTest {
                 properties(0.8, Map.of("AAPL", "Apple")),
                 quoteMapper,
                 marketDashboardService,
-                watchlistService
+                watchlistService,
+                userPropertyService,
+                notificationRouter
         );
         when(watchlistService.watchlist()).thenReturn(Map.of("AAPL", WatchlistItem.simple("AAPL", "Apple")));
     }
@@ -93,7 +105,7 @@ class MarketScannerServiceTest {
                 () -> assertEquals(0, captor.getValue().getDelta()),
                 () -> assertFalse(captor.getValue().isSend())
         );
-        verifyNoInteractions(finnhubClient, telegramClient);
+        verifyNoInteractions(finnhubClient, telegramClient, notificationRouter);
     }
 
     @Test
@@ -117,7 +129,7 @@ class MarketScannerServiceTest {
                 () -> assertFalse(entity.isSend())
         );
         verify(quoteRepository).save(entity);
-        verifyNoInteractions(finnhubClient, telegramClient);
+        verifyNoInteractions(finnhubClient, telegramClient, notificationRouter);
     }
 
     @Test
@@ -146,7 +158,7 @@ class MarketScannerServiceTest {
                 () -> assertFalse(persisted.isSend())
         );
         verify(quoteRepository).save(secondEntity);
-        verifyNoInteractions(finnhubClient, telegramClient);
+        verifyNoInteractions(finnhubClient, telegramClient, notificationRouter);
     }
 
     @Test
@@ -170,6 +182,9 @@ class MarketScannerServiceTest {
                 quote("AAPL", 1.0),
                 quote("AAPL", 0.0)
         )));
+        when(userPropertyService.findUsersWatchingSymbol("AAPL")).thenReturn(List.of(watchlistProperty(1L, "AAPL")));
+        when(userPropertyService.loadAlertSettings(1L)).thenReturn(new UserAlertSettings(0.8, 0.0001));
+        when(notificationRouter.send(eq(1L), anyString())).thenReturn(true);
 
         service.scanMarket();
         service.scanMarket();
@@ -183,7 +198,7 @@ class MarketScannerServiceTest {
         verify(quoteRepository).save(secondEntity);
 
         ArgumentCaptor<String> messageCaptor = ArgumentCaptor.forClass(String.class);
-        verify(telegramClient).sendMessage(messageCaptor.capture());
+        verify(notificationRouter).send(eq(1L), messageCaptor.capture());
         String normalizedMessage = messageCaptor.getValue().replace(',', '.');
         assertAll(
                 () -> assertNotNull(messageCaptor.getValue()),
@@ -192,7 +207,7 @@ class MarketScannerServiceTest {
                 () -> assertTrue(normalizedMessage.contains("Move since last check: 0.10%")),
                 () -> assertTrue(normalizedMessage.contains("Rolling move 5 checks: 1.10%"))
         );
-        verifyNoInteractions(finnhubClient);
+        verifyNoInteractions(finnhubClient, telegramClient);
     }
 
     @Test
@@ -233,7 +248,7 @@ class MarketScannerServiceTest {
         );
         verify(quoteRepository).save(secondEntity);
         verify(telegramClient, never()).sendMessage(anyString());
-        verifyNoInteractions(finnhubClient, telegramClient);
+        verifyNoInteractions(finnhubClient, telegramClient, notificationRouter);
     }
 
     @Test
@@ -246,7 +261,9 @@ class MarketScannerServiceTest {
                 properties(0.8, orderedWatchlist()),
                 quoteMapper,
                 marketDashboardService,
-                watchlistService
+                watchlistService,
+                userPropertyService,
+                notificationRouter
         );
         when(watchlistService.watchlist()).thenReturn(orderedWatchlistItems());
         Quote usQuote = quote("AAPL", 1.0);
@@ -263,7 +280,40 @@ class MarketScannerServiceTest {
 
         verify(yahooFinanceClient).getQuote("AAPL");
         verify(yahooFinanceClient).getQuote("BMW.DE");
-        verifyNoInteractions(finnhubClient, telegramClient);
+        verifyNoInteractions(finnhubClient, telegramClient, notificationRouter);
+    }
+
+    @Test
+    void scanMarketSkipsFailedSymbolAndContinuesWithNextSymbol() {
+        MarketScannerService multiSymbolService = new MarketScannerService(
+                quoteRepository,
+                finnhubClient,
+                yahooFinanceClient,
+                telegramClient,
+                properties(0.8, orderedWatchlist()),
+                quoteMapper,
+                marketDashboardService,
+                watchlistService,
+                userPropertyService,
+                notificationRouter
+        );
+        Map<String, WatchlistItem> watchlist = new LinkedHashMap<>();
+        watchlist.put("AIR.PA", WatchlistItem.simple("AIR.PA", "Airbus"));
+        watchlist.put("AAPL", WatchlistItem.simple("AAPL", "Apple"));
+        when(watchlistService.watchlist()).thenReturn(watchlist);
+
+        Quote aaplQuote = quote("AAPL", 1.0);
+        QuoteEntity aaplEntity = entity("AAPL", 1.0);
+        when(yahooFinanceClient.getQuote("AIR.PA")).thenThrow(new IllegalStateException("No Yahoo Finance data"));
+        when(yahooFinanceClient.getQuote("AAPL")).thenReturn(aaplQuote);
+        when(quoteMapper.toEntity(aaplQuote)).thenReturn(aaplEntity);
+
+        multiSymbolService.scanMarket();
+
+        verify(yahooFinanceClient).getQuote("AIR.PA");
+        verify(yahooFinanceClient).getQuote("AAPL");
+        verify(quoteRepository).save(aaplEntity);
+        verifyNoInteractions(finnhubClient, telegramClient, notificationRouter);
     }
 
     @Test
@@ -286,7 +336,7 @@ class MarketScannerServiceTest {
         assertDoesNotThrow(() -> service.scanMarket());
 
         verify(quoteRepository).save(secondEntity);
-        verifyNoInteractions(finnhubClient, telegramClient);
+        verifyNoInteractions(finnhubClient, telegramClient, notificationRouter);
     }
 
     private static AppProperties properties(double maximalDeltaPrice, Map<String, String> watchlist) {
@@ -301,7 +351,11 @@ class MarketScannerServiceTest {
                 0.4,
                 30_000,
                 maximalDeltaPrice,
-                5
+                5,
+                0.0001,
+                0.08,
+                3,
+                1_000
         );
     }
 
@@ -343,5 +397,19 @@ class MarketScannerServiceTest {
         entity.setOpen(95.0);
         entity.setPreviousClose(99.0);
         return entity;
+    }
+
+    private static AppUserPropertyEntity watchlistProperty(Long userId, String symbol) {
+        AppUserEntity user = new AppUserEntity();
+        user.setId(userId);
+        user.setUsername("user-" + userId);
+
+        AppUserPropertyEntity property = new AppUserPropertyEntity();
+        property.setUser(user);
+        property.setPropertyType(UserPropertyType.WATCHLIST);
+        property.setPropertyName(symbol);
+        property.setPropertyValue(symbol);
+        property.setEnabled(true);
+        return property;
     }
 }

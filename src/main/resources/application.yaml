@@ -68,6 +68,18 @@ market-bot:
 
   maximal-rolling-size: 10
 
+  # Minimum quote difference required to treat a provider quote as changed.
+  quote-change-epsilon: ${MARKET_BOT_QUOTE_CHANGE_EPSILON:0.01}
+
+  # Minimum rounded delta that should be persisted even when the quote is otherwise unchanged.
+  max-changes-for-persist: ${MARKET_BOT_MAX_CHANGES_FOR_PERSIST:0.1}
+
+  # Number of attempts for transient quote provider failures such as HTTP 429 or 5xx.
+  max-quote-fetch-attempts: ${MARKET_BOT_MAX_QUOTE_FETCH_ATTEMPTS:3}
+
+  # Delay between transient quote provider retries, in milliseconds.
+  quote-fetch-retry-delay-ms: ${MARKET_BOT_QUOTE_FETCH_RETRY_DELAY_MS:1000}
+
   dashboard:
     enabled: true
     websocket-enabled: true

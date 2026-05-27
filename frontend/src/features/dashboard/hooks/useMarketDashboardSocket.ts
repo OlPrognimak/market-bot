@@ -16,9 +16,15 @@ export function useMarketDashboardSocket(token: string) {
   useEffect(() => {
     let socket: WebSocket | null = null;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let connectTimer: ReturnType<typeof setTimeout> | null = null;
     let manuallyClosed = false;
 
     const connect = () => {
+      connectTimer = null;
+      if (manuallyClosed) {
+        return;
+      }
+
       setConnectionState((state) => (state === "disconnected" ? "reconnecting" : "connecting"));
       socket = new WebSocket(wsUrl);
 
@@ -45,14 +51,19 @@ export function useMarketDashboardSocket(token: string) {
       };
     };
 
-    connect();
+    connectTimer = setTimeout(connect, 0);
 
     return () => {
       manuallyClosed = true;
+      if (connectTimer) {
+        clearTimeout(connectTimer);
+      }
       if (reconnectTimer) {
         clearTimeout(reconnectTimer);
       }
-      socket?.close();
+      if (socket?.readyState === WebSocket.OPEN) {
+        socket.close();
+      }
     };
   }, [wsUrl]);
 

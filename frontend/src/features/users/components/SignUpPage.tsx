@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import { signUp, storeSession } from "@/lib/auth";
 import type { AuthSession, SignUpPayload, UserProperty } from "../types";
+import { WatchlistEditor, watchlistProperties, type WatchlistRow } from "./WatchlistEditor";
 
 type Props = {
   onLogin: (session: AuthSession) => void;
@@ -16,7 +17,15 @@ export function SignUpPage({ onLogin, onShowLogin }: Props) {
   const [email, setEmail] = useState("");
   const [telegramBotToken, setTelegramBotToken] = useState("");
   const [telegramChatId, setTelegramChatId] = useState("");
-  const [watchlistText, setWatchlistText] = useState("AAPL: Apple\nNVDA: NVIDIA");
+  const [telegramEnabled, setTelegramEnabled] = useState(true);
+  const [whatsAppEnabled, setWhatsAppEnabled] = useState(false);
+  const [whatsAppChatId, setWhatsAppChatId] = useState("");
+  const [rollingThreshold, setRollingThreshold] = useState("0.8");
+  const [deltaThreshold, setDeltaThreshold] = useState("0.0001");
+  const [watchlistRows, setWatchlistRows] = useState<WatchlistRow[]>([
+    { propertyName: "AAPL", propertyValue: "Apple", enabled: true },
+    { propertyName: "NVDA", propertyValue: "NVIDIA", enabled: true }
+  ]);
   const [cryptoCoinsText, setCryptoCoinsText] = useState("BTC");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -33,7 +42,12 @@ export function SignUpPage({ onLogin, onShowLogin }: Props) {
         email,
         telegramBotToken,
         telegramChatId,
-        watchlistText,
+        telegramEnabled,
+        whatsAppEnabled,
+        whatsAppChatId,
+        rollingThreshold,
+        deltaThreshold,
+        watchlistRows,
         cryptoCoinsText
       }));
       storeSession(session);
@@ -51,15 +65,15 @@ export function SignUpPage({ onLogin, onShowLogin }: Props) {
         <h1>Create Account</h1>
         <label>
           Username
-          <input value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" />
+          <input value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" required />
         </label>
         <label>
           Display name
-          <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} autoComplete="name" />
+          <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} autoComplete="name" required />
         </label>
         <label>
           Email
-          <input value={email} onChange={(event) => setEmail(event.target.value)} type="email" autoComplete="email" />
+          <input value={email} onChange={(event) => setEmail(event.target.value)} type="email" autoComplete="email" required />
         </label>
         <label>
           Password
@@ -69,11 +83,16 @@ export function SignUpPage({ onLogin, onShowLogin }: Props) {
             type="password"
             minLength={8}
             autoComplete="new-password"
+            required
           />
         </label>
 
         <fieldset>
           <legend>Bot Configuration</legend>
+          <label className="checkbox-label">
+            <input checked={telegramEnabled} onChange={(event) => setTelegramEnabled(event.target.checked)} type="checkbox" />
+            Telegram enabled
+          </label>
           <label>
             Telegram bot token
             <input value={telegramBotToken} onChange={(event) => setTelegramBotToken(event.target.value)} />
@@ -82,11 +101,31 @@ export function SignUpPage({ onLogin, onShowLogin }: Props) {
             Telegram chat id
             <input value={telegramChatId} onChange={(event) => setTelegramChatId(event.target.value)} />
           </label>
+          <label className="checkbox-label">
+            <input checked={whatsAppEnabled} onChange={(event) => setWhatsAppEnabled(event.target.checked)} type="checkbox" />
+            WhatsApp enabled
+          </label>
+          <label>
+            WhatsApp chat id
+            <input value={whatsAppChatId} onChange={(event) => setWhatsAppChatId(event.target.value)} />
+          </label>
+        </fieldset>
+
+        <fieldset>
+          <legend>Alert Settings</legend>
+          <label>
+            Rolling threshold
+            <input value={rollingThreshold} onChange={(event) => setRollingThreshold(event.target.value)} inputMode="decimal" />
+          </label>
+          <label>
+            Delta threshold
+            <input value={deltaThreshold} onChange={(event) => setDeltaThreshold(event.target.value)} inputMode="decimal" />
+          </label>
         </fieldset>
 
         <fieldset>
           <legend>Watchlist</legend>
-          <textarea value={watchlistText} onChange={(event) => setWatchlistText(event.target.value)} rows={4} />
+          <WatchlistEditor rows={watchlistRows} setRows={setWatchlistRows} />
         </fieldset>
 
         <fieldset>
@@ -95,7 +134,7 @@ export function SignUpPage({ onLogin, onShowLogin }: Props) {
         </fieldset>
 
         {error ? <div className="error-banner">{error}</div> : null}
-        <button type="submit" disabled={busy || !username || password.length < 8 || !displayName || !email}>
+        <button type="submit" disabled={busy}>
           {busy ? "Creating" : "Sign Up"}
         </button>
         <p className="auth-switch">
@@ -116,7 +155,12 @@ type FormValues = {
   email: string;
   telegramBotToken: string;
   telegramChatId: string;
-  watchlistText: string;
+  telegramEnabled: boolean;
+  whatsAppEnabled: boolean;
+  whatsAppChatId: string;
+  rollingThreshold: string;
+  deltaThreshold: string;
+  watchlistRows: WatchlistRow[];
   cryptoCoinsText: string;
 };
 
@@ -128,27 +172,54 @@ function toPayload(values: FormValues): SignUpPayload {
     email: values.email.trim(),
     metadata: {},
     properties: [
-      ...botProperties(values.telegramBotToken, values.telegramChatId),
-      ...watchlistProperties(values.watchlistText),
+      ...botProperties(values),
+      ...alertProperties(values.rollingThreshold, values.deltaThreshold),
+      ...watchlistProperties(values.watchlistRows),
       ...cryptoCoinProperties(values.cryptoCoinsText)
     ]
   };
 }
 
-function botProperties(telegramBotToken: string, telegramChatId: string): UserProperty[] {
+function botProperties(values: FormValues): UserProperty[] {
   const properties: UserProperty[] = [
     {
       propertyType: "BOT",
+      propertyName: "telegram-enabled",
+      propertyValue: String(values.telegramEnabled),
+      enabled: true,
+      description: "Telegram messenger enabled",
+      propertyValueType: "TEXT"
+    },
+    {
+      propertyType: "BOT",
       propertyName: "telegram-bot-token",
-      propertyValue: telegramBotToken.trim(),
+      propertyValue: values.telegramBotToken.trim(),
+      enabled: values.telegramEnabled,
       description: "Telegram bot token",
       propertyValueType: "SECRET"
     },
     {
       propertyType: "BOT",
       propertyName: "telegram-chat-id",
-      propertyValue: telegramChatId.trim(),
+      propertyValue: values.telegramChatId.trim(),
+      enabled: values.telegramEnabled,
       description: "Telegram chat id",
+      propertyValueType: "TEXT"
+    },
+    {
+      propertyType: "BOT",
+      propertyName: "whatsapp-enabled",
+      propertyValue: String(values.whatsAppEnabled),
+      enabled: true,
+      description: "WhatsApp messenger enabled",
+      propertyValueType: "TEXT"
+    },
+    {
+      propertyType: "BOT",
+      propertyName: "whatsapp-chat-id",
+      propertyValue: values.whatsAppChatId.trim(),
+      enabled: values.whatsAppEnabled,
+      description: "WhatsApp chat id",
       propertyValueType: "TEXT"
     }
   ];
@@ -156,21 +227,27 @@ function botProperties(telegramBotToken: string, telegramChatId: string): UserPr
   return properties.filter((property) => property.propertyValue);
 }
 
-function watchlistProperties(value: string): UserProperty[] {
-  return value.split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
-      const [symbol, ...rest] = line.split(/[:=]/);
-      return {
-        propertyType: "WATCHLIST",
-        propertyName: symbol.trim().toUpperCase(),
-        propertyValue: rest.join(":").trim() || symbol.trim().toUpperCase(),
-        description: "Watchlist instrument",
-        propertyValueType: "SYMBOL"
-      } satisfies UserProperty;
-    })
-    .filter((property) => property.propertyName);
+function alertProperties(rollingThreshold: string, deltaThreshold: string): UserProperty[] {
+  const properties: UserProperty[] = [
+    {
+      propertyType: "ALERT_SETTING",
+      propertyName: "alert-rolling-threshold",
+      propertyValue: rollingThreshold.trim(),
+      enabled: true,
+      description: "Rolling movement threshold",
+      propertyValueType: "TEXT"
+    },
+    {
+      propertyType: "ALERT_SETTING",
+      propertyName: "alert-delta-threshold",
+      propertyValue: deltaThreshold.trim(),
+      enabled: true,
+      description: "Delta movement threshold",
+      propertyValueType: "TEXT"
+    }
+  ];
+
+  return properties.filter((property) => property.propertyValue);
 }
 
 function cryptoCoinProperties(value: string): UserProperty[] {
@@ -181,6 +258,7 @@ function cryptoCoinProperties(value: string): UserProperty[] {
       propertyType: "CRYPTO_COIN",
       propertyName: coin,
       propertyValue: coin,
+      enabled: true,
       description: "Crypto coin",
       propertyValueType: "SYMBOL"
     }));

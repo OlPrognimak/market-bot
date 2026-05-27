@@ -160,6 +160,22 @@ textarea {
   padding: 10px;
 }
 
+.user-form fieldset {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.user-form legend {
+  padding: 0 4px;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 700;
+}
+
 .auth-switch {
   margin: 0;
   color: var(--muted);
@@ -247,6 +263,11 @@ textarea {
 .checkbox-label input {
   width: 16px;
   height: 16px;
+}
+
+.compact-checkbox {
+  min-height: 30px;
+  justify-content: center;
 }
 
 .label-note {
@@ -428,6 +449,38 @@ button:disabled {
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface);
+}
+
+.settings-table-frame {
+  border-radius: 6px;
+}
+
+.settings-table {
+  min-width: 720px;
+}
+
+.settings-table td {
+  vertical-align: middle;
+}
+
+.settings-table input {
+  min-width: 120px;
+}
+
+.settings-table th:nth-child(3),
+.settings-table td:nth-child(3),
+.settings-table th:nth-child(4),
+.settings-table td:nth-child(4) {
+  width: 1%;
+  text-align: center;
+}
+
+.disabled-property-row {
+  background: var(--negative-bg);
+}
+
+.disabled-property-row:hover {
+  background: #f9d8d2;
 }
 
 .symbol-link {

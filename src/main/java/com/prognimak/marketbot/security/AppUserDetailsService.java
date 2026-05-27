@@ -18,4 +18,10 @@ public class AppUserDetailsService implements UserDetailsService {
                 .map(AppUserPrincipal::new)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found: " + username));
     }
+
+    public UserDetails loadUserById(Long userId) throws UsernameNotFoundException {
+        return userRepository.findById(userId)
+                .map(AppUserPrincipal::new)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found: " + userId));
+    }
 }

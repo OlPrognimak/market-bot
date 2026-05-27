@@ -11,10 +11,13 @@ import com.prognimak.marketbot.entity.QuoteEntity;
 import com.prognimak.marketbot.mapper.QuoteMapper;
 import com.prognimak.marketbot.model.Quote;
 import com.prognimak.marketbot.model.WatchlistItem;
+import com.prognimak.marketbot.notification.NotificationRouter;
 import com.prognimak.marketbot.repository.QuoteRepository;
+import com.prognimak.marketbot.entity.AppUserPropertyEntity;
+import com.prognimak.marketbot.user.model.UserAlertSettings;
+import com.prognimak.marketbot.user.service.UserPropertyService;
 import com.prognimak.marketbot.util.Utils;
 import lombok.RequiredArgsConstructor;
-import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
 import org.springframework.data.domain.PageRequest;
@@ -28,7 +31,6 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static com.prognimak.marketbot.util.Utils.calculateRollingChanges;
 
@@ -46,39 +48,21 @@ public class MarketScannerService {
     private final QuoteMapper quoteMapper;
     private final MarketDashboardService marketDashboardService;
     private final WatchlistService watchlistService;
+    private final UserPropertyService userPropertyService;
+    private final NotificationRouter notificationRouter;
 
     private static final String TEXT_COLOR_RED = "\u001B[31m";
     private static final String TEXT_COLOR_BLUE = "\u001B[34m";
     private static final String TEXT_COLOR_NON = "\u001B[0m";
 
     //private static final int MAX_ROLLING_SIZE = 5;
-    private static final double QUOTE_CHANGE_EPSILON = 0.0001;
-    private static final double MAX_CHANGES_FOR_PERSIST = 0.08;
 
-private static final Set<String> YAHOO_EU_SUFFIXES = Set.of(
+    private static final Set<String> YAHOO_EU_SUFFIXES = Set.of(
             ".AS", ".AT", ".BE", ".BR", ".CO", ".DE", ".DU", ".F",
             ".HE", ".HM", ".IC", ".IR", ".L", ".LS", ".MC", ".MI",
             ".MU", ".OL", ".PA", ".PR", ".SG", ".ST", ".SW", ".VI",
             ".WA"
     );
-
-    /*That uses in case of using two providers.*/
-    @SneakyThrows
-    private  void getQuote(String symbol, AtomicReference<Quote>  atomicQuote) {
-        try {
-            Quote  quote = getQuoteForProvider(symbol);
-            atomicQuote.set(quote);
-        } catch (WebClientResponseException.NotFound e) {
-            // TODO: Track repeated 404s and temporarily disable unavailable symbols instead of logging every scan.
-            throw new IllegalArgumentException("Quote provider returned 404 for symbol " + symbol, e);
-        }catch(Exception e) {
-            //if (e.getMessage().contains("529")) {
-                log.error("Error getting quote for symbol {}", symbol, e);
-                Thread.currentThread().sleep(10000);
-                getQuote(symbol, atomicQuote);
-            //}
-        }
-    }
 
     /**
      * Scheduler scan shares markets every {@code fixedDelayString} and send message to user
@@ -101,9 +85,7 @@ private static final Set<String> YAHOO_EU_SUFFIXES = Set.of(
             String companyName = watchlistItem.name();
 
             try {
-                AtomicReference<Quote>  atomicQuote = new AtomicReference<>();
-                getQuote(symbol, atomicQuote);
-                Quote quote = atomicQuote.get();
+                Quote quote = getQuote(symbol);
 
                 double currentPercent = quote.percentChange();
                 PersistedHistory persistedHistory = persistedHistory(symbol);
@@ -127,7 +109,7 @@ private static final Set<String> YAHOO_EU_SUFFIXES = Set.of(
                     recordDashboardResult(quote, watchlistItem, latestPersistedChange.getPercentChange(), 0,
                             0, false, null,  lastPersistedChanges);
 
-                    if (Math.abs(Utils.roundDouble(delta, 2)) >=  MAX_CHANGES_FOR_PERSIST) {
+                    if (Math.abs(Utils.roundDouble(delta, 2)) >= properties.maxChangesForPersist()) {
                         quoteRepository.save(quoteEntity);
                     }
                     //log.info("Skipping unchanged quote for {}: price={} percent={}", symbol, quote.current(), quote.percentChange());
@@ -142,14 +124,13 @@ private static final Set<String> YAHOO_EU_SUFFIXES = Set.of(
 
 
                 String color = defineColor(rollingDeltaSum);
-                //Check whether the rolling price in absolute value reach maximal value.
-                boolean exceedsMovementThreshold = Math.abs(Utils.roundDouble(rollingDeltaSum, 2)) >= properties.maximalRollingPrice();
                 /// Persist new Quote
                 quoteRepository.save(quoteEntity);
 
                 boolean haveSendFlag = false;
                 String messageText = null;
-                if (Math.abs(delta) >= QUOTE_CHANGE_EPSILON && exceedsMovementThreshold /*exceedsMovementThreshold && exceedsAbsoluteThreshold*/) {
+                List<AppUserPropertyEntity> usersWatchingSymbol = userPropertyService.findUsersWatchingSymbol(symbol);
+                if (!usersWatchingSymbol.isEmpty()) {
                     System.out.printf(
                             color +
                                     "%s (%s) current: %.2f%% | previous: %.2f%% | delta: %.2f%% | rolling 5: %.2f%%"
@@ -164,10 +145,17 @@ private static final Set<String> YAHOO_EU_SUFFIXES = Set.of(
                     );
 
                     messageText = buildMessage(quote, watchlistItem, delta, rollingDeltaSum);
-                    telegramClient.sendMessage(messageText);
-                    quoteEntity.setSend(true);
-                    lastPersistedChanges.forEach(q -> q.setSend(true));
-                    haveSendFlag = true;
+                    for (AppUserPropertyEntity userWatchConfig : usersWatchingSymbol) {
+                        Long userId = userWatchConfig.getUser().getId();
+                        if (shouldSendForUser(userId, delta, rollingDeltaSum)
+                                && notificationRouter.send(userId, messageText)) {
+                            haveSendFlag = true;
+                        }
+                    }
+                    if (haveSendFlag) {
+                        quoteEntity.setSend(true);
+                        lastPersistedChanges.forEach(q -> q.setSend(true));
+                    }
                 }
                 recordDashboardResult(quote, watchlistItem, latestPersistedChange.getPercentChange(), delta, rollingDeltaSum, haveSendFlag, messageText, lastPersistedChanges);
                 if(!haveSendFlag && persistedHistory.unsent() && lastPersistedChanges.size() >=  properties.maximalRollingSize()) {
@@ -183,6 +171,12 @@ private static final Set<String> YAHOO_EU_SUFFIXES = Set.of(
         }
         marketDashboardService.publishSnapshot(scanStartedAt);
         log.info("End scanning market...");
+    }
+
+    private boolean shouldSendForUser(Long userId, double delta, double rollingDeltaSum) {
+        UserAlertSettings settings = userPropertyService.loadAlertSettings(userId);
+        return Math.abs(delta) >= settings.deltaThreshold()
+                && Math.abs(Utils.roundDouble(rollingDeltaSum, 2)) >= settings.rollingThreshold();
     }
 
     private static @NonNull String defineColor(double rollingDeltaSum) {
@@ -223,7 +217,7 @@ private static final Set<String> YAHOO_EU_SUFFIXES = Set.of(
     }
 
     private boolean changed(double left, double right) {
-        return Math.abs(left - right) >= QUOTE_CHANGE_EPSILON;
+        return Math.abs(left - right) >= properties.quoteChangeEpsilon();
     }
 
     private void recordDashboardResult(
@@ -326,6 +320,49 @@ private static final Set<String> YAHOO_EU_SUFFIXES = Set.of(
 
     private Quote getQuoteForProvider(String symbol) {
         return yahooFinanceClient.getQuote(symbol);
+    }
+
+    /*That uses in case of using two providers.*/
+    private Quote getQuote(String symbol) {
+        for (int attempt = 1; attempt <= properties.maxQuoteFetchAttempts(); attempt++) {
+            try {
+                return getQuoteForProvider(symbol);
+            } catch (WebClientResponseException.NotFound e) {
+                // TODO: Track repeated 404s and temporarily disable unavailable symbols instead of logging every scan.
+                throw new IllegalArgumentException("Quote provider returned 404 for symbol " + symbol, e);
+            } catch (WebClientResponseException e) {
+                if (!isTransientProviderError(e) || attempt == properties.maxQuoteFetchAttempts()) {
+                    throw new IllegalStateException("Quote provider error for symbol " + symbol
+                            + ": HTTP " + e.getStatusCode().value(), e);
+                }
+                log.warn(
+                        "Transient quote provider error for symbol {}: HTTP {}. Retry {}/{}.",
+                        symbol,
+                        e.getStatusCode().value(),
+                        attempt,
+                        properties.maxQuoteFetchAttempts()
+                );
+                sleepBeforeRetry(symbol);
+            } catch (Exception e) {
+                throw new IllegalStateException("Could not load quote for symbol " + symbol + ": " + e.getMessage(), e);
+            }
+        }
+
+        throw new IllegalStateException("Could not load quote for symbol " + symbol);
+    }
+
+    private boolean isTransientProviderError(WebClientResponseException e) {
+        int statusCode = e.getStatusCode().value();
+        return statusCode == 429 || e.getStatusCode().is5xxServerError();
+    }
+
+    private void sleepBeforeRetry(String symbol) {
+        try {
+            Thread.sleep(properties.quoteFetchRetryDelayMs());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while waiting to retry quote for symbol " + symbol, e);
+        }
     }
 
     private boolean isYahooEuropeSymbol(String symbol) {

@@ -41,6 +41,34 @@ public class JwtService {
     }
 
     public Optional<String> extractUsername(String token) {
+        return extractPayload(token)
+                .flatMap(payload -> {
+                    Object subject = payload.get("sub");
+                    return subject instanceof String username && !username.isBlank()
+                            ? Optional.of(username)
+                            : Optional.empty();
+                });
+    }
+
+    public Optional<Long> extractUserId(String token) {
+        return extractPayload(token)
+                .flatMap(payload -> {
+                    Object userId = payload.get("uid");
+                    if (userId instanceof Number number) {
+                        return Optional.of(number.longValue());
+                    }
+                    if (userId instanceof String value && !value.isBlank()) {
+                        try {
+                            return Optional.of(Long.parseLong(value));
+                        } catch (NumberFormatException e) {
+                            return Optional.empty();
+                        }
+                    }
+                    return Optional.empty();
+                });
+    }
+
+    private Optional<Map<String, Object>> extractPayload(String token) {
         try {
             String[] parts = token.split("\\.");
             if (parts.length != 3) {
@@ -58,10 +86,7 @@ public class JwtService {
                 return Optional.empty();
             }
 
-            Object subject = payload.get("sub");
-            return subject instanceof String username && !username.isBlank()
-                    ? Optional.of(username)
-                    : Optional.empty();
+            return Optional.of(payload);
         } catch (Exception e) {
             return Optional.empty();
         }

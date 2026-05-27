@@ -16,6 +16,10 @@ public record AppProperties(
         double riseAlertPercent,
         long pollIntervalMs,
         double maximalRollingPrice,
-        int maximalRollingSize
+        int maximalRollingSize,
+        double quoteChangeEpsilon,
+        double maxChangesForPersist,
+        int maxQuoteFetchAttempts,
+        long quoteFetchRetryDelayMs
 
 ) {}

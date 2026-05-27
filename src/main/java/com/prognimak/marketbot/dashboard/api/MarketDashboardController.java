@@ -6,11 +6,13 @@ import com.prognimak.marketbot.dashboard.model.MarketChartResponse;
 import com.prognimak.marketbot.dashboard.model.MarketDashboardSnapshot;
 import com.prognimak.marketbot.dashboard.service.MarketChartService;
 import com.prognimak.marketbot.dashboard.service.MarketDashboardService;
+import com.prognimak.marketbot.security.AppUserPrincipal;
 import com.prognimak.marketbot.service.MarketScannerService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -32,8 +34,11 @@ public class MarketDashboardController {
     private final MarketScannerService marketScannerService;
 
     @GetMapping("/snapshot")
-    public MarketDashboardSnapshot snapshot() {
-        return dashboardService.latestSnapshot();
+    public MarketDashboardSnapshot snapshot(@AuthenticationPrincipal AppUserPrincipal principal) {
+        if (principal == null) {
+            return dashboardService.latestSnapshot();
+        }
+        return dashboardService.latestSnapshot(principal.user().getId());
     }
 
     @GetMapping("/chart/{symbol}")
@@ -49,12 +54,15 @@ public class MarketDashboardController {
     }
 
     @PostMapping("/scan")
-    public ResponseEntity<MarketDashboardSnapshot> scan() {
+    public ResponseEntity<MarketDashboardSnapshot> scan(@AuthenticationPrincipal AppUserPrincipal principal) {
         if (!properties.manualScanEnabled()) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Manual scan is disabled");
         }
 
         marketScannerService.scanMarket();
-        return ResponseEntity.accepted().body(dashboardService.latestSnapshot());
+        if (principal == null) {
+            return ResponseEntity.accepted().body(dashboardService.latestSnapshot());
+        }
+        return ResponseEntity.accepted().body(dashboardService.latestSnapshot(principal.user().getId()));
     }
 }

@@ -34,6 +34,7 @@ public class SecurityConfiguration {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/api/auth/login").permitAll()
                         .requestMatchers("/api/auth/signup").permitAll()
+                        .requestMatchers("/ws/**").permitAll()
                         .requestMatchers("/", "/index.html", "/dashboard.js", "/styles.css").permitAll()
                         .anyRequest().authenticated()
                 )

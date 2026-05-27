@@ -45,10 +45,13 @@ public class AppUserPropertyEntity extends AbstractEntity {
     @Column(name = "property_name", nullable = false, length = 160)
     private String propertyName;
 
-    @Column(name = "property_value", length = 2000)
+    @Column(name = "property_value", length = 255)
     private String propertyValue;
 
-    @Column(length = 500)
+    @Column(nullable = false)
+    private boolean enabled = true;
+
+    @Column(length = 255)
     private String description;
 
     @Enumerated(EnumType.STRING)

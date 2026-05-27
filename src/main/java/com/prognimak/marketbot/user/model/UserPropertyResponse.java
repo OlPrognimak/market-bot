@@ -6,6 +6,7 @@ public record UserPropertyResponse(
         UserPropertyType propertyType,
         String propertyName,
         String propertyValue,
+        boolean enabled,
         String description,
         UserPropertyValueType propertyValueType
 ) {

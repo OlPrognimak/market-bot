@@ -34,6 +34,7 @@ public class UserMapper {
                         property.getPropertyType(),
                         property.getPropertyName(),
                         property.getPropertyValue(),
+                        property.isEnabled(),
                         property.getDescription(),
                         property.getPropertyValueType()
                 ))

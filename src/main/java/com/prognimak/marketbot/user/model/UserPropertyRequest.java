@@ -5,10 +5,12 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 public record UserPropertyRequest(
+        Long id,
         @NotNull UserPropertyType propertyType,
         @NotBlank @Size(max = 160) String propertyName,
-        @Size(max = 2000) String propertyValue,
-        @Size(max = 500) String description,
+        @Size(max = 255) String propertyValue,
+        Boolean enabled,
+        @Size(max = 255) String description,
         @NotNull UserPropertyValueType propertyValueType
 ) {
 }

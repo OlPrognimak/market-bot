@@ -5,12 +5,13 @@ import { DashboardPage } from "@/features/dashboard/components/DashboardPage";
 import { LoginPage } from "@/features/users/components/LoginPage";
 import { SignUpPage } from "@/features/users/components/SignUpPage";
 import { UserManagementPage } from "@/features/users/components/UserManagementPage";
+import { UserSettingsPage } from "@/features/users/components/UserSettingsPage";
 import { clearSession, fetchCurrentUser, loadStoredSession, storeSession } from "@/lib/auth";
 import type { AuthSession } from "@/features/users/types";
 
 export default function Home() {
   const [session, setSession] = useState<AuthSession | null>(null);
-  const [view, setView] = useState<"dashboard" | "users">("dashboard");
+  const [view, setView] = useState<"dashboard" | "users" | "settings">("dashboard");
   const [authView, setAuthView] = useState<"login" | "signup">("login");
   const [loading, setLoading] = useState(true);
 
@@ -51,7 +52,18 @@ export default function Home() {
 
   return (
     <>
-      {view === "users" && session.user.role === "ADMIN" ? (
+      {view === "settings" ? (
+        <UserSettingsPage
+          token={session.token}
+          currentUser={session.user}
+          onBack={() => setView("dashboard")}
+          onSave={(user) => {
+            const refreshedSession = { token: session.token, user };
+            storeSession(refreshedSession);
+            setSession(refreshedSession);
+          }}
+        />
+      ) : view === "users" && session.user.role === "ADMIN" ? (
         <main className="dashboard">
           <header className="dashboard-header">
             <div>
@@ -75,6 +87,7 @@ export default function Home() {
           currentUser={session.user}
           onLogout={logout}
           onOpenUsers={() => setView("users")}
+          onOpenSettings={() => setView("settings")}
         />
       )}
     </>

@@ -16,9 +16,10 @@ type Props = {
   currentUser: AppUser;
   onLogout: () => void;
   onOpenUsers: () => void;
+  onOpenSettings: () => void;
 };
 
-export function DashboardPage({ token, currentUser, onLogout, onOpenUsers }: Props) {
+export function DashboardPage({ token, currentUser, onLogout, onOpenUsers, onOpenSettings }: Props) {
   const { snapshot, connectionState, error, fetchSnapshot, triggerScan } = useMarketDashboardSocket(token);
   const [sortKey, setSortKey] = useState<SortKey>("backend");
   const [query, setQuery] = useState("");
@@ -81,6 +82,21 @@ export function DashboardPage({ token, currentUser, onLogout, onOpenUsers }: Pro
     };
   }, [snapshot?.results]);
 
+  useEffect(() => {
+    if (regionFilter !== "ALL" && !filterOptions.regions.includes(regionFilter)) {
+      setRegionFilter("ALL");
+    }
+    if (priorityFilter !== "ALL" && !filterOptions.priorities.includes(priorityFilter)) {
+      setPriorityFilter("ALL");
+    }
+    if (sectorFilter !== "ALL" && !filterOptions.sectors.includes(sectorFilter)) {
+      setSectorFilter("ALL");
+    }
+    if (exchangeFilter !== "ALL" && !filterOptions.exchanges.includes(exchangeFilter)) {
+      setExchangeFilter("ALL");
+    }
+  }, [exchangeFilter, filterOptions, priorityFilter, regionFilter, sectorFilter]);
+
   const chartResult = useMemo(() => {
     if (!chartSymbol) {
       return null;
@@ -115,6 +131,9 @@ export function DashboardPage({ token, currentUser, onLogout, onOpenUsers }: Pro
           <span>Last scan: {formatDateTime(snapshot?.lastScanAt)}</span>
           <span>{currentUser.displayName} ({currentUser.role})</span>
           <div className="header-actions">
+            <button type="button" className="secondary-button" onClick={onOpenSettings}>
+              Settings
+            </button>
             {currentUser.role === "ADMIN" ? (
               <button type="button" className="secondary-button" onClick={onOpenUsers}>
                 Users

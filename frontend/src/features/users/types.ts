@@ -1,5 +1,5 @@
 export type UserRole = "ADMIN" | "USER";
-export type UserPropertyType = "BOT" | "WATCHLIST" | "CRYPTO_COIN" | "CUSTOM";
+export type UserPropertyType = "BOT" | "WATCHLIST" | "CRYPTO_COIN" | "ALERT_SETTING" | "DASHBOARD_SETTING" | "CUSTOM";
 export type UserPropertyValueType = "TEXT" | "SECRET" | "SYMBOL";
 
 export type UserProperty = {
@@ -8,6 +8,7 @@ export type UserProperty = {
   propertyType: UserPropertyType;
   propertyName: string;
   propertyValue?: string | null;
+  enabled?: boolean;
   description?: string | null;
   propertyValueType: UserPropertyValueType;
 };

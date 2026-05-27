@@ -4,6 +4,8 @@ import com.prognimak.marketbot.dashboard.config.MarketDashboardProperties;
 import com.prognimak.marketbot.dashboard.model.MarketDashboardSnapshot;
 import com.prognimak.marketbot.dashboard.model.MarketScanResult;
 import com.prognimak.marketbot.dashboard.websocket.MarketDashboardWebSocketHandler;
+import com.prognimak.marketbot.user.model.DashboardSettings;
+import com.prognimak.marketbot.user.service.UserPropertyService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -11,7 +13,9 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Service
@@ -19,6 +23,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class MarketDashboardService {
     private final MarketDashboardProperties properties;
     private final MarketDashboardWebSocketHandler webSocketHandler;
+    private final UserPropertyService userPropertyService;
     private final Map<String, MarketScanResult> latestResultsBySymbol = new ConcurrentHashMap<>();
     private volatile MarketDashboardSnapshot latestSnapshot;
 
@@ -35,7 +40,7 @@ public class MarketDashboardService {
         latestSnapshot = snapshot;
 
         if (properties.websocketEnabled()) {
-            webSocketHandler.broadcast(snapshot);
+            webSocketHandler.broadcast(userId -> userId == null ? snapshot : buildSnapshot(lastScanAt, userId));
         }
 
         return snapshot;
@@ -49,15 +54,31 @@ public class MarketDashboardService {
         return latestSnapshot;
     }
 
+    public MarketDashboardSnapshot latestSnapshot(Long userId) {
+        return buildSnapshot(Instant.now(), userId);
+    }
+
     private MarketDashboardSnapshot buildSnapshot(Instant lastScanAt) {
+        return buildSnapshot(lastScanAt, null);
+    }
+
+    private MarketDashboardSnapshot buildSnapshot(Instant lastScanAt, Long userId) {
+        DashboardSettings settings = userId == null
+                ? new DashboardSettings(properties.maxResults())
+                : userPropertyService.loadDashboardSettings(userId, properties.maxResults());
+        Set<String> userSymbols = userId == null
+                ? null
+                : userPropertyService.loadUserStockSymbols(userId).orElse(null);
+
         List<MarketScanResult> results = latestResultsBySymbol.values()
                 .stream()
+                .filter(result -> userSymbols == null || userSymbols.contains(result.symbol().toUpperCase(Locale.ROOT)))
                 .sorted(Comparator
                         .comparingDouble(MarketScanResult::movementScore)
                         .reversed()
                         .thenComparing(MarketScanResult::updatedAt, Comparator.reverseOrder())
                         .thenComparing(MarketScanResult::symbol))
-                .limit(properties.maxResults())
+                .limit(settings.maxResults())
                 .toList();
 
         return new MarketDashboardSnapshot(

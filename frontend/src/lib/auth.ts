@@ -82,6 +82,14 @@ export async function updateUser(token: string, userId: number, payload: UserPay
   return response.json() as Promise<AppUser>;
 }
 
+export async function updateCurrentUser(token: string, payload: UserPayload): Promise<AppUser> {
+  const response = await authFetch(token, "/api/users/me", {
+    method: "PUT",
+    body: JSON.stringify(payload)
+  });
+  return response.json() as Promise<AppUser>;
+}
+
 export async function deleteUser(token: string, userId: number): Promise<void> {
   await authFetch(token, `/api/users/${userId}`, { method: "DELETE" });
 }

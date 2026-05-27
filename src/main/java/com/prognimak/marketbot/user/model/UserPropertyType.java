@@ -4,5 +4,7 @@ public enum UserPropertyType {
     BOT,
     WATCHLIST,
     CRYPTO_COIN,
+    ALERT_SETTING,
+    DASHBOARD_SETTING,
     CUSTOM
 }
