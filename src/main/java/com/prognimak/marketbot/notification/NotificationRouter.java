@@ -17,6 +17,7 @@ public class NotificationRouter {
     public boolean send(Long userId, String messageText) {
         UserMessengerSettings settings = userPropertyService.loadMessengerSettings(userId);
         if (!settings.hasAnyMessengerEnabled()) {
+            log.info("No messenger enabled for user {}. Notification skipped.", userId);
             return false;
         }
 

@@ -41,17 +41,17 @@ export function DashboardPage({ token, currentUser, onLogout, onOpenUsers, onOpe
   const results = useMemo(() => {
     const rawResults = snapshot?.results ?? [];
     const filtered = rawResults.filter((result) => {
-      const normalizedQuery = query.trim().toLowerCase();
-      if (regionFilter !== "ALL" && normalizedValue(result.region) !== regionFilter) {
+      const normalizedQuery = normalizedFilterValue(query);
+      if (regionFilter !== "ALL" && normalizedFilterValue(result.region) !== normalizedFilterValue(regionFilter)) {
         return false;
       }
-      if (priorityFilter !== "ALL" && normalizedPriority(result.priority) !== priorityFilter) {
+      if (priorityFilter !== "ALL" && normalizedFilterValue(normalizedPriority(result.priority)) !== normalizedFilterValue(priorityFilter)) {
         return false;
       }
-      if (sectorFilter !== "ALL" && normalizedValue(result.sector) !== sectorFilter) {
+      if (sectorFilter !== "ALL" && normalizedFilterValue(result.sector) !== normalizedFilterValue(sectorFilter)) {
         return false;
       }
-      if (exchangeFilter !== "ALL" && normalizedValue(result.exchange) !== exchangeFilter) {
+      if (exchangeFilter !== "ALL" && normalizedFilterValue(result.exchange) !== normalizedFilterValue(exchangeFilter)) {
         return false;
       }
       if (!normalizedQuery) {
@@ -66,7 +66,7 @@ export function DashboardPage({ token, currentUser, onLogout, onOpenUsers, onOpe
         result.sector,
         result.exchange,
         result.currency
-      ].filter(Boolean).join(" ").toLowerCase().includes(normalizedQuery);
+      ].filter(Boolean).map(normalizedFilterValue).join(" ").includes(normalizedQuery);
     });
 
     return sortMarketResults(filtered, sortKey);
@@ -84,16 +84,16 @@ export function DashboardPage({ token, currentUser, onLogout, onOpenUsers, onOpe
   }, [snapshot?.results]);
 
   useEffect(() => {
-    if (regionFilter !== "ALL" && !filterOptions.regions.includes(regionFilter)) {
+    if (regionFilter !== "ALL" && !hasFilterOption(filterOptions.regions, regionFilter)) {
       setRegionFilter("ALL");
     }
-    if (priorityFilter !== "ALL" && !filterOptions.priorities.includes(priorityFilter)) {
+    if (priorityFilter !== "ALL" && !hasFilterOption(filterOptions.priorities, priorityFilter)) {
       setPriorityFilter("ALL");
     }
-    if (sectorFilter !== "ALL" && !filterOptions.sectors.includes(sectorFilter)) {
+    if (sectorFilter !== "ALL" && !hasFilterOption(filterOptions.sectors, sectorFilter)) {
       setSectorFilter("ALL");
     }
-    if (exchangeFilter !== "ALL" && !filterOptions.exchanges.includes(exchangeFilter)) {
+    if (exchangeFilter !== "ALL" && !hasFilterOption(filterOptions.exchanges, exchangeFilter)) {
       setExchangeFilter("ALL");
     }
   }, [exchangeFilter, filterOptions, priorityFilter, regionFilter, sectorFilter]);
@@ -156,8 +156,8 @@ export function DashboardPage({ token, currentUser, onLogout, onOpenUsers, onOpe
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search symbol or company"
-          aria-label="Search symbol or company"
+          placeholder="Search symbol, company, sector, exchange"
+          aria-label="Search symbol, company, sector, exchange"
         />
         <select value={sortKey} onChange={(event) => setSortKey(event.target.value as SortKey)} aria-label="Sort results">
           <option value="backend">Backend ranking</option>
@@ -218,4 +218,13 @@ function normalizedValue(value: string | null | undefined): string {
 
 function normalizedPriority(value: string | null | undefined): string {
   return value && value.trim() ? value.trim() : "NORMAL";
+}
+
+function normalizedFilterValue(value: string | null | undefined): string {
+  return value ? value.trim().replace(/\s+/g, " ").toLowerCase() : "";
+}
+
+function hasFilterOption(options: string[], value: string): boolean {
+  const normalizedValue = normalizedFilterValue(value);
+  return options.some((option) => normalizedFilterValue(option) === normalizedValue);
 }

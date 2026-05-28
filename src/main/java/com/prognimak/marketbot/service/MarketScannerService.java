@@ -52,7 +52,7 @@ public class MarketScannerService {
     private final NotificationRouter notificationRouter;
 
     private static final String TEXT_COLOR_RED = "\u001B[31m";
-    private static final String TEXT_COLOR_BLUE = "\u001B[34m";
+    private static final String TEXT_COLOR_GREEN = "\u001B[32m";
     private static final String TEXT_COLOR_NON = "\u001B[0m";
 
     //private static final int MAX_ROLLING_SIZE = 5;
@@ -92,7 +92,7 @@ public class MarketScannerService {
                 List<QuoteEntity> lastPersistedChanges = persistedHistory.changes();
 
                 if (lastPersistedChanges.isEmpty()) {
-                    System.out.printf("%s (%s) initial value saved: %.2f%%%n", companyName, symbol, currentPercent);
+                    log.info("{} ({}) initial value saved: {}%", companyName, symbol, String.format(Locale.ROOT, "%.2f", currentPercent));
                     QuoteEntity entity = quoteMapper.toEntity(quote);
                     entity.setDelta(0);
                     quoteRepository.save(entity);
@@ -121,9 +121,6 @@ public class MarketScannerService {
                 quotes.add(quote);
 
                 double rollingDeltaSum = calculateRollingChanges(quotes);
-
-
-                String color = defineColor(rollingDeltaSum);
                 /// Persist new Quote
                 quoteRepository.save(quoteEntity);
 
@@ -131,17 +128,18 @@ public class MarketScannerService {
                 String messageText = null;
                 List<AppUserPropertyEntity> usersWatchingSymbol = userPropertyService.findUsersWatchingSymbol(symbol);
                 if (!usersWatchingSymbol.isEmpty()) {
-                    System.out.printf(
-                            color +
-                                    "%s (%s) current: %.2f%% | previous: %.2f%% | delta: %.2f%% | rolling 5: %.2f%%"
-                                    + TEXT_COLOR_NON
-                                    + "%n",
+                    log.info(
+                            "{}{} ({}) {} current: {}% | previous: {}% | delta: {}% | rolling {}: {}%{}",
+                            colorFor(rollingDeltaSum),
                             companyName,
                             symbol,
-                            currentPercent,
-                            latestPersistedChange.getPercentChange(),
-                            delta,
-                            rollingDeltaSum
+                            directionLabel(rollingDeltaSum),
+                            formatPercent(currentPercent),
+                            formatPercent(latestPersistedChange.getPercentChange()),
+                            formatPercent(delta),
+                            properties.maximalRollingSize(),
+                            formatPercent(rollingDeltaSum),
+                            TEXT_COLOR_NON
                     );
 
                     messageText = buildMessage(quote, watchlistItem, delta, rollingDeltaSum);
@@ -170,7 +168,7 @@ public class MarketScannerService {
 
                // Thread.sleep(500);
             } catch (Exception e) {
-                System.err.println("Error checking " + companyName + " (" + symbol + "): " + e.getMessage());
+                log.warn("Error checking {} ({}): {}", companyName, symbol, e.getMessage(), e);
             }
         }
         marketDashboardService.publishSnapshot(scanStartedAt);
@@ -183,12 +181,28 @@ public class MarketScannerService {
                 && Math.abs(Utils.roundDouble(rollingDeltaSum, 2)) >= settings.rollingThreshold();
     }
 
-    private static @NonNull String defineColor(double rollingDeltaSum) {
-        String color = rollingDeltaSum < 0?TEXT_COLOR_RED :TEXT_COLOR_NON;
-        if(!color.equals(TEXT_COLOR_RED)) {
-            color = rollingDeltaSum > 0 ? TEXT_COLOR_BLUE : TEXT_COLOR_NON;
+    private String formatPercent(double value) {
+        return String.format(Locale.ROOT, "%.2f", value);
+    }
+
+    private String directionLabel(double value) {
+        if (value > 0) {
+            return "UP";
         }
-        return color;
+        if (value < 0) {
+            return "DOWN";
+        }
+        return "FLAT";
+    }
+
+    private String colorFor(double value) {
+        if (value > 0) {
+            return TEXT_COLOR_GREEN;
+        }
+        if (value < 0) {
+            return TEXT_COLOR_RED;
+        }
+        return "";
     }
 
     private PersistedHistory persistedHistory(String symbol) {
@@ -298,8 +312,8 @@ public class MarketScannerService {
             Open: $%.2f
             Previous close: $%.2f
             """.formatted(
-                timestamp,
                 icon,
+                timestamp,
                 companyLabel,
                 quote.symbol(),
                 direction,

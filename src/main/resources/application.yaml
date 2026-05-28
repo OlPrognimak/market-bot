@@ -34,6 +34,22 @@ spring:
         connection:
           pool_size: 30
 
+logging:
+  file:
+    name: ${MARKET_BOT_LOG_FILE:logs/market-bot.log}
+  pattern:
+    console: "%clr(%d{yyyy-MM-dd HH:mm:ss}){faint} %clr(%-5level) %clr(%logger{0}){cyan} - %msg%n%wEx"
+    file: "%d{yyyy-MM-dd HH:mm:ss} %-5level %logger{0} - %msg%n%wEx"
+  logback:
+    rollingpolicy:
+      file-name-pattern: ${MARKET_BOT_LOG_FILE_PATTERN:logs/market-bot.%d{yyyy-MM-dd}.%i.log.gz}
+      max-file-size: ${MARKET_BOT_LOG_MAX_FILE_SIZE:10MB}
+      max-history: ${MARKET_BOT_LOG_MAX_HISTORY:14}
+      total-size-cap: ${MARKET_BOT_LOG_TOTAL_SIZE_CAP:200MB}
+      clean-history-on-start: ${MARKET_BOT_LOG_CLEAN_HISTORY_ON_START:false}
+  level:
+    com.prognimak.marketbot: ${MARKET_BOT_LOG_LEVEL:INFO}
+
 market-bot:
   #finnhub-api-key: ${FINNHUB_API_KEY:xxxx}
   #twelve-data-api-key: ${TWELVE_API_KEY:$4k24k24k23kl4}

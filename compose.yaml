@@ -6,6 +6,7 @@ services:
       - "${MARKET_BOT_PORT:-8080}:8080"
     volumes:
       - ${MARKET_BOT_WATCHLIST_HOST_FILE:-./config/watchlist.yaml}:/app/config/watchlist.yaml:ro
+      - ${MARKET_BOT_LOG_DIR:-./logs}:/app/logs
     environment:
       APP_DATASOURCE_URL: ${APP_DATASOURCE_URL:-jdbc:postgresql://host.docker.internal:5455/test_db}
       APP_DATASOURCE_USERNAME: ${APP_DATASOURCE_USERNAME:-test}
@@ -15,4 +16,9 @@ services:
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:?TELEGRAM_CHAT_ID must be set in .env}
       TWELVE_API_KEY: ${TWELVE_API_KEY:-}
       MARKET_BOT_WATCHLIST_FILE: ${MARKET_BOT_WATCHLIST_FILE:-/app/config/watchlist.yaml}
+      MARKET_BOT_LOG_FILE: ${MARKET_BOT_LOG_FILE:-/app/logs/market-bot.log}
+      MARKET_BOT_LOG_FILE_PATTERN: ${MARKET_BOT_LOG_FILE_PATTERN:-/app/logs/market-bot.%d{yyyy-MM-dd}.%i.log.gz}
+      MARKET_BOT_LOG_MAX_FILE_SIZE: ${MARKET_BOT_LOG_MAX_FILE_SIZE:-10MB}
+      MARKET_BOT_LOG_MAX_HISTORY: ${MARKET_BOT_LOG_MAX_HISTORY:-14}
+      MARKET_BOT_LOG_TOTAL_SIZE_CAP: ${MARKET_BOT_LOG_TOTAL_SIZE_CAP:-200MB}
       SPRING_DOCKER_COMPOSE_ENABLED: "false"
