@@ -8,13 +8,22 @@ import org.springframework.boot.jdbc.autoconfigure.DataSourceProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
+import org.springframework.http.codec.CodecConfigurer;
+import org.springframework.web.reactive.function.client.ExchangeStrategies;
 import org.springframework.web.reactive.function.client.WebClient;
 
 @Configuration(proxyBeanMethods = false)
 public class AppConfiguration {
     @Bean
     public WebClient.Builder webClientBuilder() {
-        return WebClient.builder();
+        return WebClient.builder()
+                .exchangeStrategies(ExchangeStrategies.builder()
+                        .codecs(this::configureCodecs)
+                        .build());
+    }
+
+    private void configureCodecs(CodecConfigurer configurer) {
+        configurer.defaultCodecs().maxInMemorySize(2 * 1024 * 1024);
     }
 
     @Bean

@@ -347,6 +347,8 @@ class MarketScannerServiceTest {
                 "twelve-data-api-key",
                 null,
                 watchlist,
+                null,
+                Map.of("BTC", "Bitcoin"),
                 -0.4,
                 0.4,
                 30_000,
@@ -354,6 +356,13 @@ class MarketScannerServiceTest {
                 5,
                 0.0001,
                 0.08,
+                3,
+                1_000,
+                true,
+                60_000,
+                1_000_000,
+                3,
+                "5m",
                 3,
                 1_000
         );

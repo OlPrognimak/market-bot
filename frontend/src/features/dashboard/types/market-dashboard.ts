@@ -38,7 +38,32 @@ export type MarketDashboardSnapshot = {
 
 export type SortKey = "backend" | "rolling" | "delta" | "symbol" | "updatedAt";
 
-export type MarketChartRange = "today" | "week" | "month" | "year";
+export type CryptoScanResult = {
+  symbol: string;
+  baseAsset: string;
+  coinName: string;
+  window: string;
+  openPrice: number;
+  closePrice: number;
+  priceChangePercent: number;
+  quoteVolume: number;
+  direction: MarketDirection;
+  alert: boolean;
+  updatedAt: string;
+  messageText?: string | null;
+};
+
+export type CryptoDashboardSnapshot = {
+  lastScanAt: string;
+  triggerMode: ScanTriggerMode;
+  results: CryptoScanResult[];
+  topPositive?: CryptoScanResult | null;
+  topNegative?: CryptoScanResult | null;
+};
+
+export type CryptoSortKey = "backend" | "movement" | "symbol" | "updatedAt" | "volume";
+
+export type MarketChartRange = "today" | "yesterday" | "week" | "month" | "year";
 
 export type MarketChartPoint = {
   time: string;

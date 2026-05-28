@@ -1,0 +1,23 @@
+crypto-watchlist:
+  BTC:
+    name: Bitcoin
+    enabled: true
+  ETH:
+    name: Ethereum
+    enabled: true
+  SOL:
+    name: Solana
+    enabled: true
+  XRP:
+    name: XRP
+    enabled: true
+  QNT:
+    name: Quant
+    enabled: true
+  ATOM:
+    name: Cosmos
+    enabled: true
+  TON:
+    name: Toncoin
+    enabled: true
+

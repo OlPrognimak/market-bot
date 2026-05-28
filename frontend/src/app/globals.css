@@ -322,6 +322,10 @@ textarea {
   margin-bottom: 16px;
 }
 
+.crypto-summary {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .summary-panel {
   min-height: 96px;
   padding: 14px;
@@ -498,6 +502,10 @@ button:disabled {
 .symbol-link:hover {
   background: transparent;
   color: var(--accent-dark);
+}
+
+.strong-cell {
+  font-weight: 700;
 }
 
 table {

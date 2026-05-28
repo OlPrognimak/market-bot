@@ -1,0 +1,291 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import {
+  ColorType,
+  createChart,
+  LineSeries,
+  LineStyle,
+  LineType,
+  type AutoscaleInfo,
+  type IChartApi,
+  type ISeriesApi,
+  type LineData,
+  type Time
+} from "lightweight-charts";
+import { authFetch } from "@/lib/auth";
+import { formatDateTime, formatPercent } from "@/lib/format";
+import type { CryptoScanResult, MarketChartRange, MarketChartResponse } from "../types/market-dashboard";
+
+type Props = {
+  token: string;
+  result: CryptoScanResult | null;
+  onClose: () => void;
+};
+
+const ranges: MarketChartRange[] = ["today", "yesterday", "week", "month", "year"];
+const CHART_TIME_ZONE = "Europe/Berlin";
+
+export function CryptoChartDialog({ token, result, onClose }: Props) {
+  const chartContainerRef = useRef<HTMLDivElement | null>(null);
+  const [range, setRange] = useState<MarketChartRange>("today");
+  const [chart, setChart] = useState<MarketChartResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!result) {
+      return;
+    }
+    setRange("today");
+  }, [result?.symbol]);
+
+  useEffect(() => {
+    if (!result) {
+      return;
+    }
+
+    const selectedResult = result;
+    let cancelled = false;
+
+    async function loadChart() {
+      setLoading(true);
+      setError(null);
+      try {
+        const response = await authFetch(token, `/api/crypto-dashboard/chart/${encodeURIComponent(selectedResult.symbol)}?range=${range}`);
+        const payload = await response.json() as MarketChartResponse;
+        if (!cancelled) {
+          setChart(payload);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Could not load crypto chart");
+          setChart(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadChart();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [range, result?.symbol, result?.updatedAt, token]);
+
+  useEffect(() => {
+    if (!result || !chart || !chartContainerRef.current) {
+      return;
+    }
+
+    const chartPoints = toLineData(chart);
+    const chartApi = createChart(chartContainerRef.current, {
+      autoSize: true,
+      layout: {
+        background: { type: ColorType.Solid, color: "#ffffff" },
+        textColor: "#5f6f7d",
+        fontFamily: "Arial, Helvetica, sans-serif"
+      },
+      grid: {
+        vertLines: { color: "#eef2f5" },
+        horzLines: { color: "#eef2f5" }
+      },
+      rightPriceScale: {
+        borderColor: "#d9e0e6"
+      },
+      timeScale: {
+        borderColor: "#d9e0e6",
+        timeVisible: true,
+        secondsVisible: false,
+        tickMarkFormatter: (time: Time) => formatChartTime(time)
+      },
+      localization: {
+        locale: "de-DE",
+        timeFormatter: (time: Time) => formatChartTime(time)
+      },
+      crosshair: {
+        horzLine: { color: "#687783" },
+        vertLine: { color: "#687783" }
+      }
+    });
+
+    const latestValue = chartPoints.at(-1)?.value ?? 0;
+    const lineColor = latestValue >= 0 ? "#147a46" : "#b42318";
+    const series = chartApi.addSeries(LineSeries, {
+      color: lineColor,
+      lineWidth: 2,
+      lineType: LineType.Curved,
+      pointMarkersVisible: false,
+      lastValueVisible: true,
+      priceLineVisible: true,
+      priceFormat: {
+        type: "custom",
+        formatter: (value: number) => formatPercent(value)
+      },
+      autoscaleInfoProvider: (original: () => AutoscaleInfo | null) => {
+        const autoscale = original();
+        if (autoscale === null || autoscale.priceRange === null) {
+          return null;
+        }
+        return {
+          ...autoscale,
+          priceRange: {
+            minValue: Math.min(autoscale.priceRange.minValue, 0),
+            maxValue: Math.max(autoscale.priceRange.maxValue, 0)
+          }
+        };
+      }
+    }) as ISeriesApi<"Line", Time>;
+
+    series.setData(chartPoints);
+    series.createPriceLine({
+      price: 0,
+      color: "#4f5f6b",
+      lineWidth: 2,
+      lineStyle: LineStyle.Solid,
+      axisLabelVisible: true,
+      title: "0.00%"
+    });
+    chartApi.timeScale().fitContent();
+
+    return () => destroyChart(chartApi);
+  }, [chart, result]);
+
+  if (!result) {
+    return null;
+  }
+
+  const points = chart?.points ?? [];
+  const latest = points.at(-1);
+
+  return (
+    <div className="modal-backdrop" role="presentation" onClick={onClose}>
+      <section className="chart-dialog" role="dialog" aria-modal="true" aria-labelledby="crypto-chart-title" onClick={(event) => event.stopPropagation()}>
+        <header className="chart-dialog-header">
+          <div>
+            <h2 id="crypto-chart-title">{result.baseAsset} - {result.coinName}</h2>
+            <p>{result.symbol} | Binance USDT pair</p>
+            {chart ? <p>{chartDateRange(chart)}</p> : null}
+          </div>
+          <button type="button" className="icon-button" onClick={onClose} aria-label="Close chart">x</button>
+        </header>
+
+        <div className="range-tabs" role="tablist" aria-label="Crypto chart range">
+          {ranges.map((item) => (
+            <button key={item} type="button" className={item === range ? "active" : ""} onClick={() => setRange(item)}>
+              {labelRange(item)}
+            </button>
+          ))}
+        </div>
+
+        <div className="chart-panel">
+          <div ref={chartContainerRef} className="lightweight-chart" />
+          {loading ? <div className="chart-overlay">Loading chart</div> : null}
+          {!loading && error ? <div className="chart-overlay error">{error}</div> : null}
+          {!loading && !error && points.length === 0 ? <div className="chart-overlay">No Binance candle data for this range</div> : null}
+        </div>
+
+        <div className="chart-stats">
+          <span>Price: {latest ? formatCryptoPrice(latest.price) : formatCryptoPrice(result.closePrice)}</span>
+          <span>
+            Range move:{" "}
+            <span className={toneClass(latest ? latest.percentChange : result.priceChangePercent)}>
+              {latest ? formatPercent(latest.percentChange) : formatPercent(result.priceChangePercent)}
+            </span>
+          </span>
+          <span>Open: {latest ? formatCryptoPrice(latest.open) : formatCryptoPrice(result.openPrice)}</span>
+          <span>Updated: {formatDateTime(result.updatedAt)}</span>
+          {chart ? <span>Dates: {chartDateRange(chart)}</span> : null}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function labelRange(range: MarketChartRange): string {
+  return range.charAt(0).toUpperCase() + range.slice(1);
+}
+
+function chartDateRange(chart: MarketChartResponse): string {
+  if (!chart.actualFrom || !chart.actualTo) {
+    return "No candle dates";
+  }
+
+  const from = formatChartDate(chart.actualFrom);
+  const to = formatChartDate(chart.actualTo);
+  return from === to ? from : `${from} - ${to}`;
+}
+
+function formatChartDate(value: string): string {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "2-digit",
+    year: "numeric",
+    timeZone: CHART_TIME_ZONE
+  }).format(new Date(value));
+}
+
+function formatChartTime(value: Time): string {
+  if (typeof value !== "number") {
+    return value.toString();
+  }
+
+  return new Intl.DateTimeFormat("de-DE", {
+    timeZone: CHART_TIME_ZONE,
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(new Date(value * 1000));
+}
+
+function formatCryptoPrice(value: number): string {
+  if (value >= 1000) {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(value);
+  }
+  if (value >= 1) {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 6
+    }).format(value);
+  }
+  return `$${value.toFixed(8)}`;
+}
+
+function toneClass(value: number): string {
+  if (value > 0) {
+    return "value-positive";
+  }
+  if (value < 0) {
+    return "value-negative";
+  }
+  return "value-neutral";
+}
+
+function toLineData(chart: MarketChartResponse): LineData<Time>[] {
+  const pointsByTime = new Map<number, LineData<Time>>();
+
+  chart.points.forEach((point) => {
+    const time = Math.floor(new Date(point.time).getTime() / 1000);
+    pointsByTime.set(time, {
+      time: time as Time,
+      value: point.percentChange
+    });
+  });
+
+  return Array.from(pointsByTime.values()).sort((left, right) => Number(left.time) - Number(right.time));
+}
+
+function destroyChart(chart: IChartApi) {
+  chart.remove();
+}

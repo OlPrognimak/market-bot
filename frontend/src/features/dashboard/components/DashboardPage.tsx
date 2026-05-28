@@ -17,9 +17,10 @@ type Props = {
   onLogout: () => void;
   onOpenUsers: () => void;
   onOpenSettings: () => void;
+  onOpenCrypto: () => void;
 };
 
-export function DashboardPage({ token, currentUser, onLogout, onOpenUsers, onOpenSettings }: Props) {
+export function DashboardPage({ token, currentUser, onLogout, onOpenUsers, onOpenSettings, onOpenCrypto }: Props) {
   const { snapshot, connectionState, error, fetchSnapshot, triggerScan } = useMarketDashboardSocket(token);
   const [sortKey, setSortKey] = useState<SortKey>("backend");
   const [query, setQuery] = useState("");
@@ -131,6 +132,9 @@ export function DashboardPage({ token, currentUser, onLogout, onOpenUsers, onOpe
           <span>Last scan: {formatDateTime(snapshot?.lastScanAt)}</span>
           <span>{currentUser.displayName} ({currentUser.role})</span>
           <div className="header-actions">
+            <button type="button" className="secondary-button" onClick={onOpenCrypto}>
+              Crypto
+            </button>
             <button type="button" className="secondary-button" onClick={onOpenSettings}>
               Settings
             </button>

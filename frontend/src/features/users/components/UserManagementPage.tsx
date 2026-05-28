@@ -19,7 +19,7 @@ type FormState = {
   enabled: boolean;
   metadataText: string;
   watchlistRows: WatchlistRow[];
-  cryptoCoinsText: string;
+  cryptoRows: WatchlistRow[];
   rollingThreshold: string;
   deltaThreshold: string;
   telegramEnabled: boolean;
@@ -42,7 +42,9 @@ const emptyForm: FormState = {
     { propertyName: "AAPL", propertyValue: "Apple", enabled: true },
     { propertyName: "NVDA", propertyValue: "NVIDIA", enabled: true }
   ],
-  cryptoCoinsText: "BTC",
+  cryptoRows: [
+    { propertyName: "BTC", propertyValue: "Bitcoin", enabled: true }
+  ],
   rollingThreshold: "0.8",
   deltaThreshold: "0.0001",
   telegramEnabled: true,
@@ -80,7 +82,7 @@ export function UserManagementPage({ token }: Props) {
       enabled: user.enabled,
       metadataText: metadataToText(user.metadata),
       watchlistRows: watchlistToRows(user.properties),
-      cryptoCoinsText: cryptoCoinsToText(user.properties),
+      cryptoRows: watchlistToRows(user.properties, "CRYPTO_COIN"),
       rollingThreshold: propertyValue(user.properties, "ALERT_SETTING", "alert-rolling-threshold") ?? "0.8",
       deltaThreshold: propertyValue(user.properties, "ALERT_SETTING", "alert-delta-threshold") ?? "0.0001",
       telegramEnabled: propertyValue(user.properties, "BOT", "telegram-enabled") !== "false",
@@ -219,11 +221,10 @@ export function UserManagementPage({ token }: Props) {
         </fieldset>
         <fieldset>
           <legend>Crypto Coins</legend>
-          <textarea
-            value={form.cryptoCoinsText}
-            onChange={(event) => setForm({ ...form, cryptoCoinsText: event.target.value })}
-            rows={3}
-          />
+          <WatchlistEditor rows={form.cryptoRows} setRows={(update) => setForm((current) => ({
+            ...current,
+            cryptoRows: typeof update === "function" ? update(current.cryptoRows) : update
+          }))} addLabel="Add Coin" />
         </fieldset>
         <fieldset>
           <legend>Alert Settings</legend>
@@ -288,7 +289,7 @@ function toPayload(form: FormState): UserPayload {
       ...botProperties(form),
       ...alertProperties(form),
       ...watchlistProperties(form.watchlistRows),
-      ...cryptoCoinProperties(form.cryptoCoinsText)
+      ...watchlistProperties(form.cryptoRows, { propertyType: "CRYPTO_COIN", description: "Crypto coin" })
     ]
   };
 }
@@ -314,13 +315,6 @@ function propertyValue(properties: AppUser["properties"], type: string, name: st
   return properties.find((property) => property.propertyType === type && property.propertyName === name)?.propertyValue ?? null;
 }
 
-function cryptoCoinsToText(properties: AppUser["properties"]): string {
-  return properties
-    .filter((property) => property.propertyType === "CRYPTO_COIN")
-    .map((property) => property.propertyName)
-    .join("\n");
-}
-
 function botProperties(form: FormState): UserPayload["properties"] {
   const properties: UserProperty[] = [
     { propertyType: "BOT", propertyName: "telegram-enabled", propertyValue: String(form.telegramEnabled), enabled: true, description: "Telegram messenger enabled", propertyValueType: "TEXT" },
@@ -340,18 +334,4 @@ function alertProperties(form: FormState): UserPayload["properties"] {
   ];
 
   return properties.filter((property) => property.propertyValue);
-}
-
-function cryptoCoinProperties(value: string): UserPayload["properties"] {
-  return value.split(/[\n, ]/)
-    .map((coin) => coin.trim().toUpperCase())
-    .filter(Boolean)
-    .map((coin): UserProperty => ({
-      propertyType: "CRYPTO_COIN",
-      propertyName: coin,
-      propertyValue: coin,
-      enabled: true,
-      description: "Crypto coin",
-      propertyValueType: "SYMBOL"
-    }));
 }

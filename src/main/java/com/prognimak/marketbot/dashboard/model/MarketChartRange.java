@@ -6,6 +6,7 @@ import java.time.ZoneId;
 
 public enum MarketChartRange {
     TODAY,
+    YESTERDAY,
     WEEK,
     MONTH,
     YEAR;
@@ -14,6 +15,7 @@ public enum MarketChartRange {
         LocalDate today = LocalDate.now(zoneId);
         return switch (this) {
             case TODAY -> today.atStartOfDay(zoneId).toInstant();
+            case YESTERDAY -> today.minusDays(1).atStartOfDay(zoneId).toInstant();
             case WEEK -> today.minusDays(7).atStartOfDay(zoneId).toInstant();
             case MONTH -> today.minusDays(31).atStartOfDay(zoneId).toInstant();
             case YEAR -> today.minusDays(366).atStartOfDay(zoneId).toInstant();

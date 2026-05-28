@@ -47,6 +47,12 @@ market-bot:
     AAPL: Apple
     NVDA: NVIDIA
 
+  crypto-watchlist-file: ${MARKET_BOT_CRYPTO_WATCHLIST_FILE:classpath:/crypto-watchlist.yaml}
+
+  # Fallback crypto watchlist. The external crypto-watchlist-file is used when readable.
+  crypto-watchlist:
+    BTC: Bitcoin
+    ETH: Ethereum
 
   # Send a DOWN alert only when the current daily change is less than or equal to this value.
   # Example: -0.4 means the share must be down at least 0.4% for the day.
@@ -79,6 +85,14 @@ market-bot:
 
   # Delay between transient quote provider retries, in milliseconds.
   quote-fetch-retry-delay-ms: ${MARKET_BOT_QUOTE_FETCH_RETRY_DELAY_MS:1000}
+
+  crypto-scanner-enabled: ${MARKET_BOT_CRYPTO_SCANNER_ENABLED:true}
+  crypto-poll-interval-ms: ${MARKET_BOT_CRYPTO_POLL_INTERVAL_MS:60000}
+  crypto-min-quote-volume: ${MARKET_BOT_CRYPTO_MIN_QUOTE_VOLUME:1000000}
+  crypto-price-change-percent: ${MARKET_BOT_CRYPTO_PRICE_CHANGE_PERCENT:3}
+  crypto-scan-window: ${MARKET_BOT_CRYPTO_SCAN_WINDOW:5m}
+  crypto-max-quote-fetch-attempts: ${MARKET_BOT_CRYPTO_MAX_QUOTE_FETCH_ATTEMPTS:3}
+  crypto-quote-fetch-retry-delay-ms: ${MARKET_BOT_CRYPTO_QUOTE_FETCH_RETRY_DELAY_MS:1000}
 
   dashboard:
     enabled: true

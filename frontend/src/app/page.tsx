@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { CryptoDashboardPage } from "@/features/dashboard/components/CryptoDashboardPage";
 import { DashboardPage } from "@/features/dashboard/components/DashboardPage";
 import { LoginPage } from "@/features/users/components/LoginPage";
 import { SignUpPage } from "@/features/users/components/SignUpPage";
@@ -11,7 +12,7 @@ import type { AuthSession } from "@/features/users/types";
 
 export default function Home() {
   const [session, setSession] = useState<AuthSession | null>(null);
-  const [view, setView] = useState<"dashboard" | "users" | "settings">("dashboard");
+  const [view, setView] = useState<"dashboard" | "crypto" | "users" | "settings">("dashboard");
   const [authView, setAuthView] = useState<"login" | "signup">("login");
   const [loading, setLoading] = useState(true);
 
@@ -50,6 +51,11 @@ export default function Home() {
     );
   }
 
+  if (!session.user) {
+    clearSession();
+    return <main className="dashboard">Session expired. Reload the page to sign in again.</main>;
+  }
+
   return (
     <>
       {view === "settings" ? (
@@ -62,6 +68,14 @@ export default function Home() {
             storeSession(refreshedSession);
             setSession(refreshedSession);
           }}
+        />
+      ) : view === "crypto" ? (
+        <CryptoDashboardPage
+          token={session.token}
+          currentUser={session.user}
+          onBack={() => setView("dashboard")}
+          onLogout={logout}
+          onOpenSettings={() => setView("settings")}
         />
       ) : view === "users" && session.user.role === "ADMIN" ? (
         <main className="dashboard">
@@ -88,6 +102,7 @@ export default function Home() {
           onLogout={logout}
           onOpenUsers={() => setView("users")}
           onOpenSettings={() => setView("settings")}
+          onOpenCrypto={() => setView("crypto")}
         />
       )}
     </>

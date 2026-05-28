@@ -16,7 +16,12 @@ export function loadStoredSession(): AuthSession | null {
   }
 
   try {
-    return JSON.parse(raw) as AuthSession;
+    const session = JSON.parse(raw) as Partial<AuthSession>;
+    if (isAuthSession(session)) {
+      return session;
+    }
+    window.localStorage.removeItem(SESSION_KEY);
+    return null;
   } catch {
     window.localStorage.removeItem(SESSION_KEY);
     return null;
@@ -24,6 +29,9 @@ export function loadStoredSession(): AuthSession | null {
 }
 
 export function storeSession(session: AuthSession) {
+  if (!isAuthSession(session)) {
+    throw new Error("Invalid authentication session");
+  }
   window.localStorage.setItem(SESSION_KEY, JSON.stringify(session));
 }
 
@@ -40,7 +48,7 @@ export async function login(username: string, password: string): Promise<AuthSes
   if (!response.ok) {
     throw new Error("Invalid username or password");
   }
-  return response.json() as Promise<AuthSession>;
+  return parseAuthSession(response);
 }
 
 export async function signUp(payload: SignUpPayload): Promise<AuthSession> {
@@ -53,7 +61,26 @@ export async function signUp(payload: SignUpPayload): Promise<AuthSession> {
     const message = await response.text();
     throw new Error(message || "Registration failed");
   }
-  return response.json() as Promise<AuthSession>;
+  return parseAuthSession(response);
+}
+
+async function parseAuthSession(response: Response): Promise<AuthSession> {
+  const session = await response.json() as Partial<AuthSession>;
+  if (!isAuthSession(session)) {
+    throw new Error("Invalid authentication response");
+  }
+  return session;
+}
+
+function isAuthSession(value: Partial<AuthSession> | null | undefined): value is AuthSession {
+  return Boolean(
+    value
+    && typeof value.token === "string"
+    && value.token.length > 0
+    && value.user
+    && typeof value.user.displayName === "string"
+    && typeof value.user.role === "string"
+  );
 }
 
 export async function fetchCurrentUser(token: string): Promise<AppUser> {

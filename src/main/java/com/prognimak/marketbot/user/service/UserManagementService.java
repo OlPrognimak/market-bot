@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -27,6 +28,13 @@ import java.util.Set;
 @Service
 @RequiredArgsConstructor
 public class UserManagementService {
+    private static final Set<com.prognimak.marketbot.user.model.UserPropertyType> REPLACED_PROPERTY_TYPES = EnumSet.of(
+            com.prognimak.marketbot.user.model.UserPropertyType.BOT,
+            com.prognimak.marketbot.user.model.UserPropertyType.WATCHLIST,
+            com.prognimak.marketbot.user.model.UserPropertyType.CRYPTO_COIN,
+            com.prognimak.marketbot.user.model.UserPropertyType.ALERT_SETTING
+    );
+
     private final AppUserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final UserMapper userMapper;
@@ -194,6 +202,11 @@ public class UserManagementService {
                     AppUserPropertyEntity entity = resolveProperty(user, property, existingById, existingByKey);
                     applyProperty(entity, property);
                 });
+
+        user.getProperties().removeIf(property ->
+                REPLACED_PROPERTY_TYPES.contains(property.getPropertyType())
+                        && !seen.contains(propertyKey(property))
+        );
     }
 
     private AppUserPropertyEntity resolveProperty(

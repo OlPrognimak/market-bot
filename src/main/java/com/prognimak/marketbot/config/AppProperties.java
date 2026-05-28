@@ -12,6 +12,8 @@ public record AppProperties(
         String twelveDataApiKey,
         String watchlistFile,
         Map<String, String> watchlist,
+        String cryptoWatchlistFile,
+        Map<String, String> cryptoWatchlist,
         double dropAlertPercent,
         double riseAlertPercent,
         long pollIntervalMs,
@@ -20,6 +22,13 @@ public record AppProperties(
         double quoteChangeEpsilon,
         double maxChangesForPersist,
         int maxQuoteFetchAttempts,
-        long quoteFetchRetryDelayMs
+        long quoteFetchRetryDelayMs,
+        boolean cryptoScannerEnabled,
+        long cryptoPollIntervalMs,
+        double cryptoMinQuoteVolume,
+        double cryptoPriceChangePercent,
+        String cryptoScanWindow,
+        int cryptoMaxQuoteFetchAttempts,
+        long cryptoQuoteFetchRetryDelayMs
 
 ) {}

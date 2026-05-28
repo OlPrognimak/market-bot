@@ -26,7 +26,9 @@ export function SignUpPage({ onLogin, onShowLogin }: Props) {
     { propertyName: "AAPL", propertyValue: "Apple", enabled: true },
     { propertyName: "NVDA", propertyValue: "NVIDIA", enabled: true }
   ]);
-  const [cryptoCoinsText, setCryptoCoinsText] = useState("BTC");
+  const [cryptoRows, setCryptoRows] = useState<WatchlistRow[]>([
+    { propertyName: "BTC", propertyValue: "Bitcoin", enabled: true }
+  ]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -48,7 +50,7 @@ export function SignUpPage({ onLogin, onShowLogin }: Props) {
         rollingThreshold,
         deltaThreshold,
         watchlistRows,
-        cryptoCoinsText
+        cryptoRows
       }));
       storeSession(session);
       onLogin(session);
@@ -130,7 +132,7 @@ export function SignUpPage({ onLogin, onShowLogin }: Props) {
 
         <fieldset>
           <legend>Crypto Coins</legend>
-          <textarea value={cryptoCoinsText} onChange={(event) => setCryptoCoinsText(event.target.value)} rows={3} />
+          <WatchlistEditor rows={cryptoRows} setRows={setCryptoRows} addLabel="Add Coin" />
         </fieldset>
 
         {error ? <div className="error-banner">{error}</div> : null}
@@ -161,7 +163,7 @@ type FormValues = {
   rollingThreshold: string;
   deltaThreshold: string;
   watchlistRows: WatchlistRow[];
-  cryptoCoinsText: string;
+  cryptoRows: WatchlistRow[];
 };
 
 function toPayload(values: FormValues): SignUpPayload {
@@ -175,7 +177,7 @@ function toPayload(values: FormValues): SignUpPayload {
       ...botProperties(values),
       ...alertProperties(values.rollingThreshold, values.deltaThreshold),
       ...watchlistProperties(values.watchlistRows),
-      ...cryptoCoinProperties(values.cryptoCoinsText)
+      ...watchlistProperties(values.cryptoRows, { propertyType: "CRYPTO_COIN", description: "Crypto coin" })
     ]
   };
 }
@@ -248,18 +250,4 @@ function alertProperties(rollingThreshold: string, deltaThreshold: string): User
   ];
 
   return properties.filter((property) => property.propertyValue);
-}
-
-function cryptoCoinProperties(value: string): UserProperty[] {
-  return value.split(/[\n, ]/)
-    .map((coin) => coin.trim().toUpperCase())
-    .filter(Boolean)
-    .map((coin): UserProperty => ({
-      propertyType: "CRYPTO_COIN",
-      propertyName: coin,
-      propertyValue: coin,
-      enabled: true,
-      description: "Crypto coin",
-      propertyValueType: "SYMBOL"
-    }));
 }
