@@ -1,12 +1,12 @@
-const DEFAULT_BACKEND_URL = "http://localhost:8080";
-
 export function backendHttpUrl(): string {
-  return process.env.NEXT_PUBLIC_MARKET_BOT_API_URL ?? DEFAULT_BACKEND_URL;
+  return process.env.NEXT_PUBLIC_MARKET_BOT_API_URL ?? "";
 }
 
 export function backendWsUrl(token?: string): string {
-  const httpUrl = backendHttpUrl();
-  const url = new URL(httpUrl);
+  const explicitHttpUrl = process.env.NEXT_PUBLIC_MARKET_BOT_API_URL;
+  const url = explicitHttpUrl
+    ? new URL(explicitHttpUrl)
+    : new URL(typeof window === "undefined" ? "http://localhost:3000" : window.location.origin);
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
   url.pathname = "/ws/market-dashboard";
   url.search = "";
