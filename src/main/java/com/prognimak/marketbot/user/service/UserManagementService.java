@@ -29,10 +29,8 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class UserManagementService {
     private static final Set<com.prognimak.marketbot.user.model.UserPropertyType> REPLACED_PROPERTY_TYPES = EnumSet.of(
-            com.prognimak.marketbot.user.model.UserPropertyType.BOT,
             com.prognimak.marketbot.user.model.UserPropertyType.WATCHLIST,
-            com.prognimak.marketbot.user.model.UserPropertyType.CRYPTO_COIN,
-            com.prognimak.marketbot.user.model.UserPropertyType.ALERT_SETTING
+            com.prognimak.marketbot.user.model.UserPropertyType.CRYPTO_COIN
     );
 
     private final AppUserRepository userRepository;

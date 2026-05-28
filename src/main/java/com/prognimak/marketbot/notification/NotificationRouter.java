@@ -26,8 +26,12 @@ public class NotificationRouter {
                     || settings.telegramChatId() == null || settings.telegramChatId().isBlank()) {
                 log.warn("Telegram is enabled for user {} but token or chat id is missing.", userId);
             } else {
-                telegramClient.sendMessage(settings.telegramBotToken(), settings.telegramChatId(), messageText);
-                sent = true;
+                try {
+                    telegramClient.sendMessage(settings.telegramBotToken(), settings.telegramChatId(), messageText);
+                    sent = true;
+                } catch (Exception e) {
+                    log.warn("Telegram send failed for user {}: {}", userId, e.getMessage(), e);
+                }
             }
         }
 

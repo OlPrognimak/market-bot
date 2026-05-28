@@ -38,7 +38,7 @@ public class CryptoChartService {
                 pairSymbol,
                 requestedFrom
         );
-        List<MarketChartPoint> points = quotes.stream().map(this::toPoint).toList();
+        List<MarketChartPoint> points = toPoints(quotes);
 
         return new MarketChartResponse(
                 pairSymbol,
@@ -77,7 +77,7 @@ public class CryptoChartService {
         Instant end = day.plusDays(1).atStartOfDay(zoneId).toInstant();
         List<CryptoQuoteEntity> quotes = cryptoQuoteRepository
                 .findBySymbolAndCreatedGreaterThanEqualAndCreatedLessThanOrderByCreatedAsc(pairSymbol, start, end);
-        List<MarketChartPoint> points = quotes.stream().map(this::toPoint).toList();
+        List<MarketChartPoint> points = toPoints(quotes);
 
         return new MarketChartResponse(
                 pairSymbol,
@@ -95,16 +95,37 @@ public class CryptoChartService {
         return normalized.endsWith(QUOTE_ASSET) ? normalized : normalized + QUOTE_ASSET;
     }
 
-    private MarketChartPoint toPoint(CryptoQuoteEntity entity) {
-        return new MarketChartPoint(
-                entity.getCreated(),
-                entity.getClosePrice(),
-                entity.getPriceChangePercent(),
-                entity.getDelta(),
-                entity.getOpenPrice(),
-                entity.getHighPrice(),
-                entity.getLowPrice(),
-                entity.getOpenPrice()
-        );
+    private List<MarketChartPoint> toPoints(List<CryptoQuoteEntity> quotes) {
+        if (quotes.isEmpty()) {
+            return List.of();
+        }
+
+        double basePrice = positiveOrFallback(quotes.getFirst().getOpenPrice(), quotes.getFirst().getClosePrice());
+        double[] previousClose = {basePrice};
+
+        return quotes.stream()
+                .map(entity -> {
+                    double close = entity.getClosePrice();
+                    double percentChange = basePrice <= 0 ? 0 : ((close - basePrice) / basePrice) * 100;
+                    double delta = previousClose[0] <= 0 ? 0 : ((close - previousClose[0]) / previousClose[0]) * 100;
+                    double previous = previousClose[0];
+                    previousClose[0] = close;
+
+                    return new MarketChartPoint(
+                            entity.getCreated(),
+                            close,
+                            percentChange,
+                            delta,
+                            entity.getOpenPrice(),
+                            entity.getHighPrice(),
+                            entity.getLowPrice(),
+                            previous
+                    );
+                })
+                .toList();
+    }
+
+    private double positiveOrFallback(double value, double fallback) {
+        return value > 0 ? value : fallback;
     }
 }

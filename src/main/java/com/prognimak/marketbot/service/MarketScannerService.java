@@ -147,8 +147,12 @@ public class MarketScannerService {
                     messageText = buildMessage(quote, watchlistItem, delta, rollingDeltaSum);
                     for (AppUserPropertyEntity userWatchConfig : usersWatchingSymbol) {
                         Long userId = userWatchConfig.getUser().getId();
-                        if (shouldSendForUser(userId, delta, rollingDeltaSum)
-                                && notificationRouter.send(userId, messageText)) {
+                        if (!shouldSendForUser(userId, delta, rollingDeltaSum)) {
+                            log.debug("Share alert skipped for user {} and symbol {}: delta={}, rolling={}",
+                                    userId, symbol, delta, rollingDeltaSum);
+                            continue;
+                        }
+                        if (notificationRouter.send(userId, messageText)) {
                             haveSendFlag = true;
                         }
                     }
