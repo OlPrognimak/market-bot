@@ -1,6 +1,7 @@
 package com.prognimak.marketbot.util;
 
 import com.prognimak.marketbot.model.Quote;
+import com.prognimak.marketbot.user.model.UserAlertSettings;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -31,5 +32,19 @@ class UtilsTest {
         );
         double rolling = Utils.calculateRollingChanges(quotes);
         assertEquals(0, rolling);
+    }
+
+    @Test
+    void shouldSendForUser() {
+        UserAlertSettings settings = new UserAlertSettings(3.00, 1.00);
+        assertTrue(Utils.shouldSendForUser(settings, 1.5, 3.1));
+        assertTrue(Utils.shouldSendForUser(settings, -1.5, -3.1));
+        assertFalse(Utils.shouldSendForUser(settings, -1.5, 3.1));
+        assertFalse(Utils.shouldSendForUser(settings, 1.5, -3.1));
+        assertTrue(Utils.shouldSendForUser(settings, 0.08, 3.1));
+        assertTrue(Utils.shouldSendForUser(settings, 1.1, 0.5));
+        assertFalse(Utils.shouldSendForUser(settings, 0.08, 2.1));
+
+
     }
 }

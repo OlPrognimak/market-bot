@@ -30,8 +30,6 @@ public class UserPropertyService {
     public static final String WHATSAPP_BOT_TOKEN = "whatsapp-bot-token";
     public static final String DASHBOARD_MAX_RESULTS = "dashboard-max-results";
 
-    private static final double DEFAULT_DELTA_THRESHOLD = 0.0001;
-
     private final AppUserPropertyRepository propertyRepository;
     private final AppProperties appProperties;
 
@@ -100,7 +98,7 @@ public class UserPropertyService {
                 doubleProperty(userId, UserPropertyType.ALERT_SETTING, ALERT_ROLLING_THRESHOLD)
                         .orElse(appProperties.maximalRollingPrice()),
                 doubleProperty(userId, UserPropertyType.ALERT_SETTING, ALERT_DELTA_THRESHOLD)
-                        .orElse(DEFAULT_DELTA_THRESHOLD)
+                        .orElse(Math.abs(appProperties.riseAlertPercent()))
         );
     }
 

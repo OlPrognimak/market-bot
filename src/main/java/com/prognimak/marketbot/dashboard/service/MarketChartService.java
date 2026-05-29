@@ -36,7 +36,7 @@ public class MarketChartService {
                 entities.isEmpty() ? null : entities.getFirst().getCreated(),
                 entities.isEmpty() ? null : entities.getLast().getCreated(),
                 false,
-                entities.stream().map(this::toPoint).toList()
+                toPoints(entities)
         );
     }
 
@@ -61,20 +61,50 @@ public class MarketChartService {
                 entities.isEmpty() ? null : entities.getFirst().getCreated(),
                 entities.isEmpty() ? null : entities.getLast().getCreated(),
                 latestTradingDayIsNotToday,
-                entities.stream().map(this::toPoint).toList()
+                toPoints(entities)
         );
     }
 
-    private MarketChartPoint toPoint(QuoteEntity entity) {
-        return new MarketChartPoint(
-                entity.getCreated(),
-                entity.getCurrent(),
-                entity.getPercentChange(),
-                entity.getDelta(),
-                entity.getOpen(),
-                entity.getHigh(),
-                entity.getLow(),
-                entity.getPreviousClose()
-        );
+    private List<MarketChartPoint> toPoints(List<QuoteEntity> entities) {
+        if (entities.isEmpty()) {
+            return List.of();
+        }
+
+        double previousClose = latestPositivePreviousClose(entities);
+        double[] previousPrice = {positiveOrFallback(entities.getFirst().getPreviousClose(), entities.getFirst().getCurrent())};
+
+        return entities.stream()
+                .map(entity -> {
+                    double current = entity.getCurrent();
+                    double percentChange = previousClose <= 0 ? 0 : ((current - previousClose) / previousClose) * 100;
+                    double delta = previousPrice[0] <= 0 ? 0 : ((current - previousPrice[0]) / previousPrice[0]) * 100;
+                    double previous = previousPrice[0];
+                    previousPrice[0] = current;
+                    return new MarketChartPoint(
+                            entity.getCreated(),
+                            current,
+                            percentChange,
+                            delta,
+                            entity.getOpen(),
+                            entity.getHigh(),
+                            entity.getLow(),
+                            previous
+                    );
+                })
+                .toList();
+    }
+
+    private double latestPositivePreviousClose(List<QuoteEntity> entities) {
+        for (int i = entities.size() - 1; i >= 0; i--) {
+            double previousClose = entities.get(i).getPreviousClose();
+            if (previousClose > 0) {
+                return previousClose;
+            }
+        }
+        return entities.getFirst().getCurrent();
+    }
+
+    private double positiveOrFallback(double value, double fallback) {
+        return value > 0 ? value : fallback;
     }
 }

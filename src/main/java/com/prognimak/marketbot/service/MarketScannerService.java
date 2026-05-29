@@ -33,6 +33,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 import static com.prognimak.marketbot.util.Utils.calculateRollingChanges;
+import static com.prognimak.marketbot.util.Utils.shouldSendForUser;
 
 @Service
 @Profile("!history-backfill")
@@ -90,7 +91,6 @@ public class MarketScannerService {
                 double currentPercent = quote.percentChange();
                 PersistedHistory persistedHistory = persistedHistory(symbol);
                 List<QuoteEntity> lastPersistedChanges = persistedHistory.changes();
-
                 if (lastPersistedChanges.isEmpty()) {
                     log.info("{} ({}) initial value saved: {}%", companyName, symbol, String.format(Locale.ROOT, "%.2f", currentPercent));
                     QuoteEntity entity = quoteMapper.toEntity(quote);
@@ -102,7 +102,7 @@ public class MarketScannerService {
 
                 QuoteEntity latestPersistedChange = quoteRepository.findFirstBySymbolOrderByCreatedDesc(symbol)
                         .orElse(lastPersistedChanges.getFirst());
-                double delta = quote.percentChange() - latestPersistedChange.getPercentChange();
+                double delta = Utils.roundDouble(quote.percentChange() - latestPersistedChange.getPercentChange(), 2);
                 QuoteEntity quoteEntity = quoteMapper.toEntity(quote);
                 quoteEntity.setDelta(delta);
                 if (!hasQuoteChanged(quote, latestPersistedChange)) {
@@ -110,6 +110,7 @@ public class MarketScannerService {
                             0, false, null,  lastPersistedChanges);
 
                     if (Math.abs(Utils.roundDouble(delta, 2)) >= properties.maxChangesForPersist()) {
+                        log.info("Data persisted for symbol {}, company {}, delta ({}%) ", symbol, companyName, delta);
                         quoteRepository.save(quoteEntity);
                     }
                     //log.info("Skipping unchanged quote for {}: price={} percent={}", symbol, quote.current(), quote.percentChange());
@@ -120,7 +121,7 @@ public class MarketScannerService {
                 Collections.reverse(quotes);
                 quotes.add(quote);
 
-                double rollingDeltaSum = calculateRollingChanges(quotes);
+                double rollingDeltaSum = Utils.roundDouble(calculateRollingChanges(quotes), 2);
                 /// Persist new Quote
                 quoteRepository.save(quoteEntity);
 
@@ -145,11 +146,19 @@ public class MarketScannerService {
                     messageText = buildMessage(quote, watchlistItem, delta, rollingDeltaSum);
                     for (AppUserPropertyEntity userWatchConfig : usersWatchingSymbol) {
                         Long userId = userWatchConfig.getUser().getId();
-                        if (!shouldSendForUser(userId, delta, rollingDeltaSum)) {
-                            log.debug("Share alert skipped for user {} and symbol {}: delta={}, rolling={}",
-                                    userId, symbol, delta, rollingDeltaSum);
+                        UserAlertSettings alertSettings = userPropertyService.loadAlertSettings(userId);
+
+                        if (!shouldSendForUser(alertSettings, delta, rollingDeltaSum)) {
+                            log.info("Share alert skipped for user {} and symbol {}: delta {}% / threshold {}%, rolling {}% / threshold {}%",
+                                    userId,
+                                    symbol,
+                                    formatPercent(delta),
+                                    formatPercent(alertSettings.deltaThreshold()),
+                                    formatPercent(rollingDeltaSum),
+                                    formatPercent(alertSettings.rollingThreshold()));
                             continue;
                         }
+                        //Send message
                         if (notificationRouter.send(userId, messageText)) {
                             haveSendFlag = true;
                         }
@@ -173,12 +182,6 @@ public class MarketScannerService {
         }
         marketDashboardService.publishSnapshot(scanStartedAt);
         log.info("End scanning market...");
-    }
-
-    private boolean shouldSendForUser(Long userId, double delta, double rollingDeltaSum) {
-        UserAlertSettings settings = userPropertyService.loadAlertSettings(userId);
-        return Math.abs(delta) >= settings.deltaThreshold()
-                && Math.abs(Utils.roundDouble(rollingDeltaSum, 2)) >= settings.rollingThreshold();
     }
 
     private String formatPercent(double value) {

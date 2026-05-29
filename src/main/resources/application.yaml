@@ -49,6 +49,8 @@ logging:
       clean-history-on-start: ${MARKET_BOT_LOG_CLEAN_HISTORY_ON_START:false}
   level:
     com.prognimak.marketbot: ${MARKET_BOT_LOG_LEVEL:INFO}
+  console:
+    enabled: false
 
 market-bot:
   #finnhub-api-key: ${FINNHUB_API_KEY:xxxx}
@@ -72,11 +74,11 @@ market-bot:
 
   # Send a DOWN alert only when the current daily change is less than or equal to this value.
   # Example: -0.4 means the share must be down at least 0.4% for the day.
-  drop-alert-percent: -0.5
+  drop-alert-percent: -0.2
 
   # Send an UP alert only when the current daily change is greater than or equal to this value.
   # Example: 0.4 means the share must be up at least 0.4% for the day.
-  rise-alert-percent: 0.5
+  rise-alert-percent: 0.2
 
   # Delay between market scans in milliseconds.
   # Example: 30000 means the app checks the watchlist every 30 seconds.
@@ -86,9 +88,9 @@ market-bot:
 
   # Minimum accumulated movement required before an alert can be sent.
   # Example: 0.8 means the rolling price movement must be at least 0.8% up or down.
-  maximal-rolling-price: 0.9
+  maximal-rolling-price: 0.5
 
-  maximal-rolling-size: 10
+  maximal-rolling-size: 30
 
   # Minimum quote difference required to treat a provider quote as changed.
   quote-change-epsilon: ${MARKET_BOT_QUOTE_CHANGE_EPSILON:0.01}
@@ -116,12 +118,3 @@ market-bot:
     scan-trigger-mode: BOTH
     max-results: 100
 
-server:
-  tomcat:
-    basedir: .
-    accesslog:
-      enabled: false
-      directory: logs
-      pattern: '%h %l %u %t "%r" %s %b %D'
-      prefix: access
-      suffix: .log
