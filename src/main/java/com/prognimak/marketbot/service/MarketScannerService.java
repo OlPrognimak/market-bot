@@ -7,13 +7,11 @@ import com.prognimak.marketbot.config.AppProperties;
 import com.prognimak.marketbot.dashboard.model.MarketDirection;
 import com.prognimak.marketbot.dashboard.model.MarketScanResult;
 import com.prognimak.marketbot.dashboard.service.MarketDashboardService;
-import com.prognimak.marketbot.entity.AppUserEntity;
 import com.prognimak.marketbot.entity.QuoteEntity;
-import com.prognimak.marketbot.entity.UserSymbolAlertStateEntity;
 import com.prognimak.marketbot.mapper.QuoteMapper;
 import com.prognimak.marketbot.model.Quote;
 import com.prognimak.marketbot.model.WatchlistItem;
-import com.prognimak.marketbot.notification.NotificationRouter;
+import com.prognimak.marketbot.notification.AsyncNotificationService;
 import com.prognimak.marketbot.repository.QuoteRepository;
 import com.prognimak.marketbot.entity.AppUserPropertyEntity;
 import com.prognimak.marketbot.repository.UserSymbolAlertStateRepository;
@@ -52,7 +50,7 @@ public class MarketScannerService {
     private final MarketDashboardService marketDashboardService;
     private final WatchlistService watchlistService;
     private final UserPropertyService userPropertyService;
-    private final NotificationRouter notificationRouter;
+    private final AsyncNotificationService notificationService;
     private final UserSymbolAlertStateRepository alertStateRepository;
 
     private static final String TEXT_COLOR_RED = "\u001B[31m";
@@ -71,7 +69,7 @@ public class MarketScannerService {
     /**
      * Scheduler scan shares markets every {@code fixedDelayString} and send message to user
      */
-    @Scheduled(fixedDelayString = "${market-bot.poll-interval-ms}")
+    @Scheduled(fixedDelayString = "${market-bot.scanner.poll-interval-ms}")
     public void scanMarket() {
         log.info("Start scanning market...");
         Instant scanStartedAt = Instant.now();
@@ -112,7 +110,7 @@ public class MarketScannerService {
                     recordDashboardResult(quote, watchlistItem, latestPersistedChange.getPercentChange(), 0,
                             0, false, null,  lastPersistedChanges);
 
-                    if (Math.abs(Utils.roundDouble(delta, 2)) >= properties.maxChangesForPersist()) {
+                    if (Math.abs(Utils.roundDouble(delta, 2)) >= properties.scanner().maxChangesForPersist()) {
                         log.info("Data persisted for symbol {}, company {}, delta ({}%) ", symbol, companyName, delta);
                         quoteRepository.save(quoteEntity);
                     }
@@ -141,7 +139,7 @@ public class MarketScannerService {
                             formatPercent(currentPercent),
                             formatPercent(latestPersistedChange.getPercentChange()),
                             formatPercent(delta),
-                            properties.maximalRollingSize(),
+                            properties.alert().maximalRollingSize(),
                             formatPercent(rollingDeltaSum),
                             TEXT_COLOR_NON
                     );
@@ -166,10 +164,8 @@ public class MarketScannerService {
                                     userId, symbol, savedQuoteEntity.getId());
                             continue;
                         }
-                        //Send message
-                        if (notificationRouter.send(userId, messageText)) {
+                        if (notificationService.sendShareAlert(userId, symbol, savedQuoteEntity.getId(), messageText)) {
                             haveSendFlag = true;
-                            markAlertSent(userWatchConfig.getUser(), symbol, savedQuoteEntity);
                         }
                     }
                 }
@@ -210,7 +206,7 @@ public class MarketScannerService {
 
     private PersistedHistory persistedHistory(String symbol) {
         List<QuoteEntity> recentChanges = quoteRepository.findBySymbolOrderByCreatedDesc(
-                symbol, PageRequest.of(0, properties.maximalRollingSize()));
+                symbol, PageRequest.of(0, properties.alert().maximalRollingSize()));
         if (recentChanges == null) {
             return new PersistedHistory(List.of(), false);
         }
@@ -236,20 +232,6 @@ public class MarketScannerService {
                 .orElse(false);
     }
 
-    private void markAlertSent(AppUserEntity user, String symbol, QuoteEntity quoteEntity) {
-        if (quoteEntity.getId() == null) {
-            return;
-        }
-        UserSymbolAlertStateEntity state = alertStateRepository
-                .findByUserIdAndSymbolIgnoreCase(user.getId(), symbol)
-                .orElseGet(UserSymbolAlertStateEntity::new);
-        state.setUser(user);
-        state.setSymbol(symbol);
-        state.setLastSentQuote(quoteEntity);
-        state.setLastSentAt(Instant.now());
-        alertStateRepository.save(state);
-    }
-
     private boolean hasQuoteChanged(Quote quote, QuoteEntity latestPersistedChange) {
         return changed(quote.current(), latestPersistedChange.getCurrent())
                 || changed(quote.percentChange(), latestPersistedChange.getPercentChange())
@@ -261,7 +243,7 @@ public class MarketScannerService {
     }
 
     private boolean changed(double left, double right) {
-        return Math.abs(left - right) >= properties.quoteChangeEpsilon();
+        return Math.abs(left - right) >= properties.scanner().quoteChangeEpsilon();
     }
 
     private void recordDashboardResult(
@@ -368,14 +350,14 @@ public class MarketScannerService {
 
     /*That uses in case of using two providers.*/
     private Quote getQuote(String symbol) {
-        for (int attempt = 1; attempt <= properties.maxQuoteFetchAttempts(); attempt++) {
+        for (int attempt = 1; attempt <= properties.scanner().maxQuoteFetchAttempts(); attempt++) {
             try {
                 return getQuoteForProvider(symbol);
             } catch (WebClientResponseException.NotFound e) {
                 // TODO: Track repeated 404s and temporarily disable unavailable symbols instead of logging every scan.
                 throw new IllegalArgumentException("Quote provider returned 404 for symbol " + symbol, e);
             } catch (WebClientResponseException e) {
-                if (!isTransientProviderError(e) || attempt == properties.maxQuoteFetchAttempts()) {
+                if (!isTransientProviderError(e) || attempt == properties.scanner().maxQuoteFetchAttempts()) {
                     throw new IllegalStateException("Quote provider error for symbol " + symbol
                             + ": HTTP " + e.getStatusCode().value(), e);
                 }
@@ -384,7 +366,7 @@ public class MarketScannerService {
                         symbol,
                         e.getStatusCode().value(),
                         attempt,
-                        properties.maxQuoteFetchAttempts()
+                        properties.scanner().maxQuoteFetchAttempts()
                 );
                 sleepBeforeRetry(symbol);
             } catch (Exception e) {
@@ -402,7 +384,7 @@ public class MarketScannerService {
 
     private void sleepBeforeRetry(String symbol) {
         try {
-            Thread.sleep(properties.quoteFetchRetryDelayMs());
+            Thread.sleep(properties.scanner().quoteFetchRetryDelayMs());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Interrupted while waiting to retry quote for symbol " + symbol, e);

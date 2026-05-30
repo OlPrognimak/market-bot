@@ -30,7 +30,7 @@ public class WatchlistService {
     private final ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
 
     public Map<String, WatchlistItem> watchlist() {
-        String watchlistFile = properties.watchlistFile();
+        String watchlistFile = properties.shares().watchlistFile();
         if (watchlistFile == null || watchlistFile.isBlank()) {
             return configuredWatchlist();
         }
@@ -64,12 +64,12 @@ public class WatchlistService {
     }
 
     private Map<String, WatchlistItem> configuredWatchlist() {
-        if (properties.watchlist() == null) {
+        if (properties.shares().watchlist() == null) {
             return Map.of();
         }
 
         Map<String, WatchlistItem> watchlist = new LinkedHashMap<>();
-        properties.watchlist().forEach((symbol, companyName) ->
+        properties.shares().watchlist().forEach((symbol, companyName) ->
                 watchlist.put(symbol, WatchlistItem.simple(symbol, companyName))
         );
         return watchlist;

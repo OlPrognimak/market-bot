@@ -96,9 +96,9 @@ public class UserPropertyService {
     public UserAlertSettings loadAlertSettings(Long userId) {
         return new UserAlertSettings(
                 doubleProperty(userId, UserPropertyType.ALERT_SETTING, ALERT_ROLLING_THRESHOLD)
-                        .orElse(appProperties.maximalRollingPrice()),
+                        .orElse(appProperties.alert().maximalRollingPrice()),
                 doubleProperty(userId, UserPropertyType.ALERT_SETTING, ALERT_DELTA_THRESHOLD)
-                        .orElse(Math.abs(appProperties.riseAlertPercent()))
+                        .orElse(Math.abs(appProperties.alert().riseAlertPercent()))
         );
     }
 
@@ -106,8 +106,8 @@ public class UserPropertyService {
     public UserMessengerSettings loadMessengerSettings(Long userId) {
         return new UserMessengerSettings(
                 booleanProperty(userId, UserPropertyType.BOT, TELEGRAM_ENABLED).orElse(false),
-                stringProperty(userId, UserPropertyType.BOT, TELEGRAM_CHAT_ID).orElse(appProperties.telegramChatId()),
-                stringProperty(userId, UserPropertyType.BOT, TELEGRAM_BOT_TOKEN).orElse(appProperties.telegramBotToken()),
+                stringProperty(userId, UserPropertyType.BOT, TELEGRAM_CHAT_ID).orElse(appProperties.messageSender().telegramChatId()),
+                stringProperty(userId, UserPropertyType.BOT, TELEGRAM_BOT_TOKEN).orElse(appProperties.messageSender().telegramBotToken()),
                 booleanProperty(userId, UserPropertyType.BOT, WHATSAPP_ENABLED).orElse(false),
                 stringProperty(userId, UserPropertyType.BOT, WHATSAPP_CHAT_ID).orElse(null),
                 stringProperty(userId, UserPropertyType.BOT, WHATSAPP_BOT_TOKEN).orElse(null)

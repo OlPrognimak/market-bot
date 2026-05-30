@@ -26,7 +26,7 @@ public class TwellveClient {
                                 .queryParam("symbol", symbol)
                                 .queryParam(
                                         "apikey",
-                                        properties.twelveDataApiKey()
+                                        properties.providers().twelveDataApiKey()
                                 )
                                 .build()
                         )

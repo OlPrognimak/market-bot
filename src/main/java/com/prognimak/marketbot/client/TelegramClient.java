@@ -18,17 +18,17 @@ public class TelegramClient {
     }
 
     public void sendMessage(String text) {
-        if (properties.telegramBotToken() == null || properties.telegramBotToken().isBlank()) {
+        if (properties.messageSender().telegramBotToken() == null || properties.messageSender().telegramBotToken().isBlank()) {
             throw new IllegalStateException("Telegram bot token is not configured");
         }
-        if (properties.telegramChatId() == null || properties.telegramChatId().isBlank()) {
+        if (properties.messageSender().telegramChatId() == null || properties.messageSender().telegramChatId().isBlank()) {
             throw new IllegalStateException("Telegram chat id is not configured");
         }
 
         webClient.post()
-                .uri("/bot{token}/sendMessage", properties.telegramBotToken())
+                .uri("/bot{token}/sendMessage", properties.messageSender().telegramBotToken())
                 .bodyValue(new TelegramMessage(
-                        properties.telegramChatId(),
+                        properties.messageSender().telegramChatId(),
                         text
                 ))
                 .retrieve()

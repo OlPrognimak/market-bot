@@ -91,30 +91,12 @@ class WatchlistServiceTest {
 
     private static AppProperties properties(String watchlistFile, Map<String, String> watchlist) {
         return new AppProperties(
-                "finnhub-api-key",
-                "telegram-bot-token",
-                "telegram-chat-id",
-                "twelve-data-api-key",
-                watchlistFile,
-                watchlist,
-                null,
-                Map.of("BTC", "Bitcoin"),
-                -0.4,
-                0.4,
-                30_000,
-                0.8,
-                5,
-                0.0001,
-                0.08,
-                3,
-                1_000,
-                true,
-                60_000,
-                1_000_000,
-                3,
-                "5m",
-                3,
-                1_000
+                new AppProperties.ProviderConfig("finnhub-api-key", "twelve-data-api-key"),
+                new AppProperties.MessageSenderConfig("telegram-bot-token", "telegram-chat-id", 20),
+                new AppProperties.ScannerConfig(30_000, 0.0001, 0.08, 3, 1_000),
+                new AppProperties.SharesConfig(watchlistFile, watchlist),
+                new AppProperties.AlertConfig(-0.4, 0.4, 0.8, 5),
+                new AppProperties.CryptoConfig(true, 60_000, null, Map.of("BTC", "Bitcoin"), 1_000_000, 3, "5m", 3, 1_000)
         );
     }
 }

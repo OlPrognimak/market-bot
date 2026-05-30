@@ -51,64 +51,71 @@ logging:
     com.prognimak.marketbot: ${MARKET_BOT_LOG_LEVEL:INFO}
 
 market-bot:
-  #finnhub-api-key: ${FINNHUB_API_KEY:xxxx}
-  #twelve-data-api-key: ${TWELVE_API_KEY:$4k24k24k23kl4}
-  telegram-bot-token: ${TELEGRAM_BOT_TOKEN:xxx}
-  telegram-chat-id: ${TELEGRAM_CHAT_ID:11111111}
-  watchlist-file: ${MARKET_BOT_WATCHLIST_FILE:classpath:/watchlist.yaml}
+  providers:
+    finnhub-api-key: ${FINNHUB_API_KEY:xxxx}
+    twelve-data-api-key: ${TWELVE_API_KEY:xxxx}
 
-  # Fallback watchlist. If market-bot.watchlist-file points to a readable file,
-  # that external file is used instead and is reloaded on every scan.
-  watchlist:
-    AAPL: Apple
-    NVDA: NVIDIA
+  message-sender:
+    telegram-bot-token: ${TELEGRAM_BOT_TOKEN:xxx}
+    telegram-chat-id: ${TELEGRAM_CHAT_ID:11111111}
+    max-concurrent-sends: ${MARKET_BOT_NOTIFICATION_MAX_CONCURRENT_SENDS:20}
 
-  crypto-watchlist-file: ${MARKET_BOT_CRYPTO_WATCHLIST_FILE:classpath:/crypto-watchlist.yaml}
+  scanner:
+    # Delay between market scans in milliseconds.
+    # Example: 30000 means the app checks the watchlist every 30 seconds.
+    poll-interval-ms: 30000
 
-  # Fallback crypto watchlist. The external crypto-watchlist-file is used when readable.
-  crypto-watchlist:
-    BTC: Bitcoin
-    ETH: Ethereum
+    # Minimum quote difference required to treat a provider quote as changed.
+    quote-change-epsilon: ${MARKET_BOT_QUOTE_CHANGE_EPSILON:0.01}
 
-  # Send a DOWN alert only when the current daily change is less than or equal to this value.
-  # Example: -0.4 means the share must be down at least 0.4% for the day.
-  drop-alert-percent: -0.2
+    # Minimum rounded delta that should be persisted even when the quote is otherwise unchanged.
+    max-changes-for-persist: ${MARKET_BOT_MAX_CHANGES_FOR_PERSIST:0.1}
 
-  # Send an UP alert only when the current daily change is greater than or equal to this value.
-  # Example: 0.4 means the share must be up at least 0.4% for the day.
-  rise-alert-percent: 0.2
+    # Number of attempts for transient quote provider failures such as HTTP 429 or 5xx.
+    max-quote-fetch-attempts: ${MARKET_BOT_MAX_QUOTE_FETCH_ATTEMPTS:3}
 
-  # Delay between market scans in milliseconds.
-  # Example: 30000 means the app checks the watchlist every 30 seconds.
-  poll-interval-ms: 30000
+    # Delay between transient quote provider retries, in milliseconds.
+    quote-fetch-retry-delay-ms: ${MARKET_BOT_QUOTE_FETCH_RETRY_DELAY_MS:1000}
 
+  shares:
+    watchlist-file: ${MARKET_BOT_WATCHLIST_FILE:classpath:/watchlist.yaml}
 
+    # Fallback watchlist. If market-bot.shares.watchlist-file points to a readable file,
+    # that external file is used instead and is reloaded on every scan.
+    watchlist:
+      AAPL: Apple
+      NVDA: NVIDIA
 
-  # Minimum accumulated movement required before an alert can be sent.
-  # Example: 0.8 means the rolling price movement must be at least 0.8% up or down.
-  maximal-rolling-price: 0.5
+  alert:
+    # Send a DOWN alert only when the current daily change is less than or equal to this value.
+    # Example: -0.4 means the share must be down at least 0.4% for the day.
+    drop-alert-percent: -0.2
 
-  maximal-rolling-size: 15
+    # Send an UP alert only when the current daily change is greater than or equal to this value.
+    # Example: 0.4 means the share must be up at least 0.4% for the day.
+    rise-alert-percent: 0.2
 
-  # Minimum quote difference required to treat a provider quote as changed.
-  quote-change-epsilon: ${MARKET_BOT_QUOTE_CHANGE_EPSILON:0.01}
+    # Minimum accumulated movement required before an alert can be sent.
+    # Example: 0.8 means the rolling price movement must be at least 0.8% up or down.
+    maximal-rolling-price: 0.5
 
-  # Minimum rounded delta that should be persisted even when the quote is otherwise unchanged.
-  max-changes-for-persist: ${MARKET_BOT_MAX_CHANGES_FOR_PERSIST:0.1}
+    maximal-rolling-size: 15
 
-  # Number of attempts for transient quote provider failures such as HTTP 429 or 5xx.
-  max-quote-fetch-attempts: ${MARKET_BOT_MAX_QUOTE_FETCH_ATTEMPTS:3}
+  crypto:
+    scanner-enabled: ${MARKET_BOT_CRYPTO_SCANNER_ENABLED:true}
+    poll-interval-ms: ${MARKET_BOT_CRYPTO_POLL_INTERVAL_MS:60000}
+    watchlist-file: ${MARKET_BOT_CRYPTO_WATCHLIST_FILE:classpath:/crypto-watchlist.yaml}
 
-  # Delay between transient quote provider retries, in milliseconds.
-  quote-fetch-retry-delay-ms: ${MARKET_BOT_QUOTE_FETCH_RETRY_DELAY_MS:1000}
+    # Fallback crypto watchlist. The external watchlist-file is used when readable.
+    watchlist:
+      BTC: Bitcoin
+      ETH: Ethereum
 
-  crypto-scanner-enabled: ${MARKET_BOT_CRYPTO_SCANNER_ENABLED:true}
-  crypto-poll-interval-ms: ${MARKET_BOT_CRYPTO_POLL_INTERVAL_MS:60000}
-  crypto-min-quote-volume: ${MARKET_BOT_CRYPTO_MIN_QUOTE_VOLUME:1000000}
-  crypto-price-change-percent: ${MARKET_BOT_CRYPTO_PRICE_CHANGE_PERCENT:3}
-  crypto-scan-window: ${MARKET_BOT_CRYPTO_SCAN_WINDOW:5m}
-  crypto-max-quote-fetch-attempts: ${MARKET_BOT_CRYPTO_MAX_QUOTE_FETCH_ATTEMPTS:3}
-  crypto-quote-fetch-retry-delay-ms: ${MARKET_BOT_CRYPTO_QUOTE_FETCH_RETRY_DELAY_MS:1000}
+    min-quote-volume: ${MARKET_BOT_CRYPTO_MIN_QUOTE_VOLUME:1000000}
+    price-change-percent: ${MARKET_BOT_CRYPTO_PRICE_CHANGE_PERCENT:3}
+    scan-window: ${MARKET_BOT_CRYPTO_SCAN_WINDOW:5m}
+    max-quote-fetch-attempts: ${MARKET_BOT_CRYPTO_MAX_QUOTE_FETCH_ATTEMPTS:3}
+    quote-fetch-retry-delay-ms: ${MARKET_BOT_CRYPTO_QUOTE_FETCH_RETRY_DELAY_MS:1000}
 
   dashboard:
     enabled: true

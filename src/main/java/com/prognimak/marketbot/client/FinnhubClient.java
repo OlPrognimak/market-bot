@@ -24,7 +24,7 @@ public class FinnhubClient implements MarketDataProvider {
                 .uri(uriBuilder -> uriBuilder
                         .path("/quote")
                         .queryParam("symbol", symbol)
-                        .queryParam("token", properties.finnhubApiKey())
+                        .queryParam("token", properties.providers().finnhubApiKey())
                         .build())
                 .retrieve()
                 .bodyToMono(FinnhubQuoteResponse.class)

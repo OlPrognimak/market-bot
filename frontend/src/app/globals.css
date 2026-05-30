@@ -658,6 +658,24 @@ tbody tr:hover {
   padding: 0;
 }
 
+.delete-icon-button {
+  display: inline-grid;
+  place-items: center;
+  border-color: var(--negative);
+  background: #ffffff;
+  color: var(--negative);
+}
+
+.delete-icon-button:hover {
+  background: var(--negative-bg);
+}
+
+.delete-icon-button svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+
 .range-tabs {
   display: flex;
   gap: 8px;

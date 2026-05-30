@@ -55,13 +55,19 @@ export function WatchlistEditor({ rows, setRows, addLabel = "Add Symbol" }: Prop
                       checked={row.enabled}
                       onChange={(event) => updateWatchlistRow(index, { enabled: event.target.checked }, setRows)}
                       type="checkbox"
+                      aria-label={`Enable ${row.propertyName || "symbol"}`}
                     />
-                    Enabled
                   </label>
                 </td>
                 <td>
-                  <button type="button" className="secondary-button" onClick={() => removeWatchlistRow(index, setRows)}>
-                    Delete
+                  <button
+                    type="button"
+                    className="icon-button delete-icon-button"
+                    onClick={() => removeWatchlistRow(index, setRows)}
+                    aria-label={`Delete ${row.propertyName || "symbol"}`}
+                    title="Delete"
+                  >
+                    <TrashIcon />
                   </button>
                 </td>
               </tr>
@@ -125,4 +131,13 @@ function addWatchlistRow(setRows: Dispatch<SetStateAction<WatchlistRow[]>>) {
 
 function removeWatchlistRow(index: number, setRows: Dispatch<SetStateAction<WatchlistRow[]>>) {
   setRows((rows) => rows.filter((_, rowIndex) => rowIndex !== index));
+}
+
+function TrashIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false">
+      <path d="M9 3h6l1 2h4v2H4V5h4l1-2Z" />
+      <path d="M6 9h12l-1 12H7L6 9Zm4 2v8h2v-8h-2Zm4 0v8h2v-8h-2Z" />
+    </svg>
+  );
 }

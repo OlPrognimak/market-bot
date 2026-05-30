@@ -11,7 +11,7 @@ import com.prognimak.marketbot.entity.QuoteEntity;
 import com.prognimak.marketbot.mapper.QuoteMapper;
 import com.prognimak.marketbot.model.Quote;
 import com.prognimak.marketbot.model.WatchlistItem;
-import com.prognimak.marketbot.notification.NotificationRouter;
+import com.prognimak.marketbot.notification.AsyncNotificationService;
 import com.prognimak.marketbot.repository.QuoteRepository;
 import com.prognimak.marketbot.repository.UserSymbolAlertStateRepository;
 import com.prognimak.marketbot.user.model.UserAlertSettings;
@@ -64,7 +64,7 @@ class MarketScannerServiceTest {
     @Mock
     private UserPropertyService userPropertyService;
     @Mock
-    private NotificationRouter notificationRouter;
+    private AsyncNotificationService notificationService;
     @Mock
     private UserSymbolAlertStateRepository alertStateRepository;
 
@@ -82,7 +82,7 @@ class MarketScannerServiceTest {
                 marketDashboardService,
                 watchlistService,
                 userPropertyService,
-                notificationRouter,
+                notificationService,
                 alertStateRepository
         );
         when(watchlistService.watchlist()).thenReturn(Map.of("AAPL", WatchlistItem.simple("AAPL", "Apple")));
@@ -107,7 +107,7 @@ class MarketScannerServiceTest {
                 () -> assertEquals(0, captor.getValue().getDelta()),
                 () -> assertFalse(captor.getValue().isSend())
         );
-        verifyNoInteractions(finnhubClient, telegramClient, notificationRouter);
+        verifyNoInteractions(finnhubClient, telegramClient, notificationService);
     }
 
     @Test
@@ -129,7 +129,7 @@ class MarketScannerServiceTest {
                 () -> assertFalse(entity.isSend())
         );
         verify(quoteRepository).save(entity);
-        verifyNoInteractions(finnhubClient, telegramClient, notificationRouter);
+        verifyNoInteractions(finnhubClient, telegramClient, notificationService);
     }
 
     @Test
@@ -156,7 +156,7 @@ class MarketScannerServiceTest {
                 () -> assertFalse(persisted.isSend())
         );
         verify(quoteRepository).save(secondEntity);
-        verifyNoInteractions(finnhubClient, telegramClient, notificationRouter);
+        verifyNoInteractions(finnhubClient, telegramClient, notificationService);
     }
 
     @Test
@@ -180,7 +180,7 @@ class MarketScannerServiceTest {
         )));
         when(userPropertyService.findUsersWatchingSymbol("AAPL")).thenReturn(List.of(watchlistProperty(1L, "AAPL")));
         when(userPropertyService.loadAlertSettings(1L)).thenReturn(new UserAlertSettings(0.8, 0.0001));
-        when(notificationRouter.send(eq(1L), anyString())).thenReturn(true);
+        when(notificationService.sendShareAlert(eq(1L), eq("AAPL"), any(), anyString())).thenReturn(true);
 
         service.scanMarket();
         service.scanMarket();
@@ -194,7 +194,7 @@ class MarketScannerServiceTest {
         verify(quoteRepository).save(secondEntity);
 
         ArgumentCaptor<String> messageCaptor = ArgumentCaptor.forClass(String.class);
-        verify(notificationRouter).send(eq(1L), messageCaptor.capture());
+        verify(notificationService).sendShareAlert(eq(1L), eq("AAPL"), any(), messageCaptor.capture());
         String normalizedMessage = messageCaptor.getValue().replace(',', '.');
         assertAll(
                 () -> assertNotNull(messageCaptor.getValue()),
@@ -242,7 +242,7 @@ class MarketScannerServiceTest {
         );
         verify(quoteRepository).save(secondEntity);
         verify(telegramClient, never()).sendMessage(anyString());
-        verifyNoInteractions(finnhubClient, telegramClient, notificationRouter);
+        verifyNoInteractions(finnhubClient, telegramClient, notificationService);
     }
 
     @Test
@@ -257,7 +257,7 @@ class MarketScannerServiceTest {
                 marketDashboardService,
                 watchlistService,
                 userPropertyService,
-                notificationRouter,
+                notificationService,
                 alertStateRepository
         );
         when(watchlistService.watchlist()).thenReturn(orderedWatchlistItems());
@@ -275,7 +275,7 @@ class MarketScannerServiceTest {
 
         verify(yahooFinanceClient).getQuote("AAPL");
         verify(yahooFinanceClient).getQuote("BMW.DE");
-        verifyNoInteractions(finnhubClient, telegramClient, notificationRouter);
+        verifyNoInteractions(finnhubClient, telegramClient, notificationService);
     }
 
     @Test
@@ -290,7 +290,7 @@ class MarketScannerServiceTest {
                 marketDashboardService,
                 watchlistService,
                 userPropertyService,
-                notificationRouter,
+                notificationService,
                 alertStateRepository
         );
         Map<String, WatchlistItem> watchlist = new LinkedHashMap<>();
@@ -309,7 +309,7 @@ class MarketScannerServiceTest {
         verify(yahooFinanceClient).getQuote("AIR.PA");
         verify(yahooFinanceClient).getQuote("AAPL");
         verify(quoteRepository).save(aaplEntity);
-        verifyNoInteractions(finnhubClient, telegramClient, notificationRouter);
+        verifyNoInteractions(finnhubClient, telegramClient, notificationService);
     }
 
     @Test
@@ -330,35 +330,17 @@ class MarketScannerServiceTest {
         assertDoesNotThrow(() -> service.scanMarket());
 
         verify(quoteRepository).save(secondEntity);
-        verifyNoInteractions(finnhubClient, telegramClient, notificationRouter);
+        verifyNoInteractions(finnhubClient, telegramClient, notificationService);
     }
 
     private static AppProperties properties(double maximalDeltaPrice, Map<String, String> watchlist) {
         return new AppProperties(
-                "finnhub-api-key",
-                "telegram-bot-token",
-                "telegram-chat-id",
-                "twelve-data-api-key",
-                null,
-                watchlist,
-                null,
-                Map.of("BTC", "Bitcoin"),
-                -0.4,
-                0.4,
-                30_000,
-                maximalDeltaPrice,
-                5,
-                0.0001,
-                0.08,
-                3,
-                1_000,
-                true,
-                60_000,
-                1_000_000,
-                3,
-                "5m",
-                3,
-                1_000
+                new AppProperties.ProviderConfig("finnhub-api-key", "twelve-data-api-key"),
+                new AppProperties.MessageSenderConfig("telegram-bot-token", "telegram-chat-id", 20),
+                new AppProperties.ScannerConfig(30_000, 0.0001, 0.08, 3, 1_000),
+                new AppProperties.SharesConfig(null, watchlist),
+                new AppProperties.AlertConfig(-0.4, 0.4, maximalDeltaPrice, 5),
+                new AppProperties.CryptoConfig(true, 60_000, null, Map.of("BTC", "Bitcoin"), 1_000_000, 3, "5m", 3, 1_000)
         );
     }
 

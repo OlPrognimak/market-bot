@@ -30,7 +30,7 @@ public class CryptoWatchlistService {
     private final ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
 
     public Map<String, CryptoWatchlistItem> watchlist() {
-        String watchlistFile = properties.cryptoWatchlistFile();
+        String watchlistFile = properties.crypto().watchlistFile();
         if (watchlistFile == null || watchlistFile.isBlank()) {
             return configuredWatchlist();
         }
@@ -62,12 +62,12 @@ public class CryptoWatchlistService {
     }
 
     private Map<String, CryptoWatchlistItem> configuredWatchlist() {
-        if (properties.cryptoWatchlist() == null) {
+        if (properties.crypto().watchlist() == null) {
             return Map.of();
         }
 
         Map<String, CryptoWatchlistItem> watchlist = new LinkedHashMap<>();
-        properties.cryptoWatchlist().forEach((symbol, name) ->
+        properties.crypto().watchlist().forEach((symbol, name) ->
                 watchlist.put(normalizeSymbol(symbol), CryptoWatchlistItem.simple(normalizeSymbol(symbol), name))
         );
         return watchlist;

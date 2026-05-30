@@ -13,8 +13,9 @@ import com.prognimak.marketbot.model.BinanceTickerResponse;
 import com.prognimak.marketbot.model.CoinGeckoSearchResponse;
 import com.prognimak.marketbot.model.CryptoMovement;
 import com.prognimak.marketbot.model.CryptoWatchlistItem;
-import com.prognimak.marketbot.notification.NotificationRouter;
+import com.prognimak.marketbot.notification.AsyncNotificationService;
 import com.prognimak.marketbot.repository.CryptoQuoteRepository;
+import com.prognimak.marketbot.repository.CryptoUserSymbolAlertStateRepository;
 import com.prognimak.marketbot.user.service.UserPropertyService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -48,13 +49,14 @@ public class CryptoScannerService {
     private final CoinGeckoClient coinGeckoClient;
     private final CryptoWatchlistService cryptoWatchlistService;
     private final UserPropertyService userPropertyService;
-    private final NotificationRouter notificationRouter;
+    private final AsyncNotificationService notificationService;
     private final CryptoDashboardService cryptoDashboardService;
     private final CryptoQuoteRepository cryptoQuoteRepository;
+    private final CryptoUserSymbolAlertStateRepository cryptoAlertStateRepository;
 
-    @Scheduled(fixedDelayString = "${market-bot.crypto-poll-interval-ms}")
+    @Scheduled(fixedDelayString = "${market-bot.crypto.poll-interval-ms}")
     public void scanCryptoMarket() {
-        if (!properties.cryptoScannerEnabled()) {
+        if (!properties.crypto().scannerEnabled()) {
             return;
         }
 
@@ -172,7 +174,7 @@ public class CryptoScannerService {
         }
 
         double quoteVolume = quoteVolumeBySymbol.getOrDefault(pair.symbol(), 0d);
-        if (quoteVolume < properties.cryptoMinQuoteVolume()) {
+        if (quoteVolume < properties.crypto().minQuoteVolume()) {
             return Optional.empty();
         }
 
@@ -194,7 +196,7 @@ public class CryptoScannerService {
                     pair.symbol(),
                     item.symbol(),
                     name,
-                    properties.cryptoScanWindow(),
+                    properties.crypto().scanWindow(),
                     open,
                     close,
                     ((close - open) / open) * 100,
@@ -207,16 +209,16 @@ public class CryptoScannerService {
     }
 
     private List<List<Object>> getKlines(String symbol) {
-        for (int attempt = 1; attempt <= properties.cryptoMaxQuoteFetchAttempts(); attempt++) {
+        for (int attempt = 1; attempt <= properties.crypto().maxQuoteFetchAttempts(); attempt++) {
             try {
                 List<List<Object>> candles = binanceClient.klines(symbol, "1m", candleLimit());
                 return candles == null ? List.of() : candles;
             } catch (WebClientResponseException e) {
-                if (!isTransientProviderError(e) || attempt == properties.cryptoMaxQuoteFetchAttempts()) {
+                if (!isTransientProviderError(e) || attempt == properties.crypto().maxQuoteFetchAttempts()) {
                     throw e;
                 }
                 log.warn("Transient Binance error for crypto {}: HTTP {}. Retry {}/{}.",
-                        symbol, e.getStatusCode().value(), attempt, properties.cryptoMaxQuoteFetchAttempts());
+                        symbol, e.getStatusCode().value(), attempt, properties.crypto().maxQuoteFetchAttempts());
                 sleepBeforeRetry(symbol);
             }
         }
@@ -224,7 +226,7 @@ public class CryptoScannerService {
     }
 
     private void recordMovement(CryptoMovement movement) {
-        boolean alert = Math.abs(movement.priceChangePercent()) >= properties.cryptoPriceChangePercent();
+        boolean alert = Math.abs(movement.priceChangePercent()) >= properties.crypto().priceChangePercent();
         String text = alert ? buildMessage(movement) : null;
         CryptoQuoteEntity quoteEntity = persistQuote(movement, alert);
         cryptoDashboardService.recordResult(new CryptoScanResult(
@@ -246,15 +248,26 @@ public class CryptoScannerService {
             return;
         }
 
-        System.out.println(text);
-
         List<AppUserPropertyEntity> usersWatchingCoin = userPropertyService.findUsersWatchingCryptoCoin(movement.baseAsset());
         for (AppUserPropertyEntity userWatchConfig : usersWatchingCoin) {
             Long userId = userWatchConfig.getUser().getId();
-            if (notificationRouter.send(userId, text)) {
-                quoteEntity.setSend(true);
+            if (hasAlertAlreadyBeenSent(userId, movement.baseAsset(), quoteEntity)) {
+                log.info("Crypto alert skipped for user {} and symbol {}: quote {} was already sent.",
+                        userId, movement.baseAsset(), quoteEntity.getId());
+                continue;
             }
+            notificationService.sendCryptoAlert(userId, movement.baseAsset(), quoteEntity.getId(), text);
         }
+    }
+
+    private boolean hasAlertAlreadyBeenSent(Long userId, String symbol, CryptoQuoteEntity quoteEntity) {
+        if (quoteEntity.getId() == null) {
+            return false;
+        }
+        return cryptoAlertStateRepository.findByUserIdAndSymbolIgnoreCase(userId, symbol)
+                .map(state -> state.getLastSentQuote() != null
+                        && Objects.equals(state.getLastSentQuote().getId(), quoteEntity.getId()))
+                .orElse(false);
     }
 
     private CryptoQuoteEntity persistQuote(CryptoMovement movement, boolean alert) {
@@ -308,11 +321,11 @@ public class CryptoScannerService {
     }
 
     private int candleLimit() {
-        return switch (properties.cryptoScanWindow()) {
+        return switch (properties.crypto().scanWindow()) {
             case "1m" -> 1;
             case "5m" -> 5;
             case "15m" -> 15;
-            default -> throw new IllegalStateException("Unsupported crypto scan window: " + properties.cryptoScanWindow());
+            default -> throw new IllegalStateException("Unsupported crypto scan window: " + properties.crypto().scanWindow());
         };
     }
 
@@ -347,7 +360,7 @@ public class CryptoScannerService {
 
     private void sleepBeforeRetry(String symbol) {
         try {
-            Thread.sleep(properties.cryptoQuoteFetchRetryDelayMs());
+            Thread.sleep(properties.crypto().quoteFetchRetryDelayMs());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Interrupted while waiting to retry crypto quote for symbol " + symbol, e);
