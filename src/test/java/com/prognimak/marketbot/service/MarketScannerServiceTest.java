@@ -13,6 +13,7 @@ import com.prognimak.marketbot.model.Quote;
 import com.prognimak.marketbot.model.WatchlistItem;
 import com.prognimak.marketbot.notification.NotificationRouter;
 import com.prognimak.marketbot.repository.QuoteRepository;
+import com.prognimak.marketbot.repository.UserSymbolAlertStateRepository;
 import com.prognimak.marketbot.user.model.UserAlertSettings;
 import com.prognimak.marketbot.user.model.UserPropertyType;
 import com.prognimak.marketbot.user.service.UserPropertyService;
@@ -64,6 +65,8 @@ class MarketScannerServiceTest {
     private UserPropertyService userPropertyService;
     @Mock
     private NotificationRouter notificationRouter;
+    @Mock
+    private UserSymbolAlertStateRepository alertStateRepository;
 
     private MarketScannerService service;
 
@@ -79,7 +82,8 @@ class MarketScannerServiceTest {
                 marketDashboardService,
                 watchlistService,
                 userPropertyService,
-                notificationRouter
+                notificationRouter,
+                alertStateRepository
         );
         when(watchlistService.watchlist()).thenReturn(Map.of("AAPL", WatchlistItem.simple("AAPL", "Apple")));
     }
@@ -90,8 +94,6 @@ class MarketScannerServiceTest {
         QuoteEntity entity = entity("AAPL", 1.25);
 
         when(yahooFinanceClient.getQuote("AAPL")).thenReturn(quote);
-        when(quoteRepository.findBySymbolAndSendIsFalseOrderByCreatedDesc(eq("AAPL"), any(Pageable.class)))
-                .thenReturn(List.of());
         when(quoteRepository.findBySymbolOrderByCreatedDesc(eq("AAPL"), any(Pageable.class)))
                 .thenReturn(List.of());
         when(quoteMapper.toEntity(quote)).thenReturn(entity);
@@ -115,8 +117,6 @@ class MarketScannerServiceTest {
         QuoteEntity persisted = entity("AAPL", 1.0);
 
         when(yahooFinanceClient.getQuote("AAPL")).thenReturn(quote);
-        when(quoteRepository.findBySymbolAndSendIsFalseOrderByCreatedDesc(eq("AAPL"), any(Pageable.class)))
-                .thenReturn(List.of());
         when(quoteRepository.findBySymbolOrderByCreatedDesc(eq("AAPL"), any(Pageable.class)))
                 .thenReturn(List.of(persisted));
         when(quoteMapper.toQuotes(List.of(persisted))).thenReturn(new ArrayList<>(List.of(quote("AAPL", 1.0))));
@@ -143,10 +143,8 @@ class MarketScannerServiceTest {
         when(yahooFinanceClient.getQuote("AAPL")).thenReturn(firstQuote, secondQuote);
         when(quoteMapper.toEntity(firstQuote)).thenReturn(firstEntity);
         when(quoteMapper.toEntity(secondQuote)).thenReturn(secondEntity);
-        when(quoteRepository.findBySymbolAndSendIsFalseOrderByCreatedDesc(eq("AAPL"), any(Pageable.class)))
-                .thenReturn(List.of(), List.of(persisted));
         when(quoteRepository.findBySymbolOrderByCreatedDesc(eq("AAPL"), any(Pageable.class)))
-                .thenReturn(List.of());
+                .thenReturn(List.of(), List.of(persisted));
         when(quoteMapper.toQuotes(List.of(persisted))).thenReturn(new ArrayList<>(List.of(quote("AAPL", 1.0))));
 
         service.scanMarket();
@@ -162,7 +160,7 @@ class MarketScannerServiceTest {
     }
 
     @Test
-    void scanMarketMarksCurrentAndHistoryAsSentWhenRollingMovementExceedsThreshold() {
+    void scanMarketSendsOncePerUserAndSymbolWhenRollingMovementExceedsThreshold() {
         Quote firstQuote = quote("AAPL", 1.0);
         Quote secondQuote = quote("AAPL", 1.1);
         QuoteEntity firstEntity = entity("AAPL", 1.0);
@@ -174,10 +172,8 @@ class MarketScannerServiceTest {
         when(yahooFinanceClient.getQuote("AAPL")).thenReturn(firstQuote, secondQuote);
         when(quoteMapper.toEntity(firstQuote)).thenReturn(firstEntity);
         when(quoteMapper.toEntity(secondQuote)).thenReturn(secondEntity);
-        when(quoteRepository.findBySymbolAndSendIsFalseOrderByCreatedDesc(eq("AAPL"), any(Pageable.class)))
-                .thenReturn(List.of(), persistedHistoryNewestFirst);
         when(quoteRepository.findBySymbolOrderByCreatedDesc(eq("AAPL"), any(Pageable.class)))
-                .thenReturn(List.of());
+                .thenReturn(List.of(), persistedHistoryNewestFirst);
         when(quoteMapper.toQuotes(persistedHistoryNewestFirst)).thenReturn(new ArrayList<>(List.of(
                 quote("AAPL", 1.0),
                 quote("AAPL", 0.0)
@@ -191,9 +187,9 @@ class MarketScannerServiceTest {
 
         assertAll(
                 () -> assertEquals(0.1, secondEntity.getDelta(), 0.0001),
-                () -> assertTrue(secondEntity.isSend()),
-                () -> assertTrue(latestPersisted.isSend()),
-                () -> assertTrue(olderPersisted.isSend())
+                () -> assertFalse(secondEntity.isSend()),
+                () -> assertFalse(latestPersisted.isSend()),
+                () -> assertFalse(olderPersisted.isSend())
         );
         verify(quoteRepository).save(secondEntity);
 
@@ -211,7 +207,7 @@ class MarketScannerServiceTest {
     }
 
     @Test
-    void scanMarketMarksOldUnsentHistoryWhenHistoryReachesRollingLimitWithoutAlert() {
+    void scanMarketDoesNotMarkOldHistoryWhenHistoryReachesRollingLimitWithoutAlert() {
         Quote firstQuote = quote("AAPL", 1.0);
         Quote secondQuote = quote("AAPL", 1.1);
         QuoteEntity firstEntity = entity("AAPL", 1.0);
@@ -227,10 +223,8 @@ class MarketScannerServiceTest {
         when(yahooFinanceClient.getQuote("AAPL")).thenReturn(firstQuote, secondQuote);
         when(quoteMapper.toEntity(firstQuote)).thenReturn(firstEntity);
         when(quoteMapper.toEntity(secondQuote)).thenReturn(secondEntity);
-        when(quoteRepository.findBySymbolAndSendIsFalseOrderByCreatedDesc(eq("AAPL"), any(Pageable.class)))
-                .thenReturn(List.of(), persistedHistory);
         when(quoteRepository.findBySymbolOrderByCreatedDesc(eq("AAPL"), any(Pageable.class)))
-                .thenReturn(List.of());
+                .thenReturn(List.of(), persistedHistory);
         when(quoteMapper.toQuotes(persistedHistory)).thenReturn(new ArrayList<>(List.of(
                 quote("AAPL", 1.0),
                 quote("AAPL", 1.0),
@@ -244,7 +238,7 @@ class MarketScannerServiceTest {
 
         assertAll(
                 () -> assertFalse(secondEntity.isSend()),
-                () -> assertTrue(persistedHistory.stream().allMatch(QuoteEntity::isSend))
+                () -> assertTrue(persistedHistory.stream().noneMatch(QuoteEntity::isSend))
         );
         verify(quoteRepository).save(secondEntity);
         verify(telegramClient, never()).sendMessage(anyString());
@@ -263,7 +257,8 @@ class MarketScannerServiceTest {
                 marketDashboardService,
                 watchlistService,
                 userPropertyService,
-                notificationRouter
+                notificationRouter,
+                alertStateRepository
         );
         when(watchlistService.watchlist()).thenReturn(orderedWatchlistItems());
         Quote usQuote = quote("AAPL", 1.0);
@@ -295,7 +290,8 @@ class MarketScannerServiceTest {
                 marketDashboardService,
                 watchlistService,
                 userPropertyService,
-                notificationRouter
+                notificationRouter,
+                alertStateRepository
         );
         Map<String, WatchlistItem> watchlist = new LinkedHashMap<>();
         watchlist.put("AIR.PA", WatchlistItem.simple("AIR.PA", "Airbus"));
@@ -326,8 +322,6 @@ class MarketScannerServiceTest {
         when(yahooFinanceClient.getQuote("AAPL")).thenReturn(firstQuote, secondQuote);
         when(quoteMapper.toEntity(firstQuote)).thenReturn(firstEntity);
         when(quoteMapper.toEntity(secondQuote)).thenReturn(secondEntity);
-        when(quoteRepository.findBySymbolAndSendIsFalseOrderByCreatedDesc(eq("AAPL"), any(Pageable.class)))
-                .thenReturn(List.of());
         when(quoteRepository.findBySymbolOrderByCreatedDesc(eq("AAPL"), any(Pageable.class)))
                 .thenReturn(List.of());
 

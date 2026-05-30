@@ -35,22 +35,20 @@ spring:
           pool_size: 30
 
 logging:
-  file:
-    name: ${MARKET_BOT_LOG_FILE:logs/market-bot.log}
+#  file:
+#    name: ${MARKET_BOT_LOG_FILE:logs/market-bot.log}
   pattern:
     console: "%clr(%d{yyyy-MM-dd HH:mm:ss}){faint} %clr(%-5level) %clr(%logger{0}){cyan} - %msg%n%wEx"
     file: "%d{yyyy-MM-dd HH:mm:ss} %-5level %logger{0} - %msg%n%wEx"
-  logback:
-    rollingpolicy:
-      file-name-pattern: ${MARKET_BOT_LOG_FILE_PATTERN:logs/market-bot.%d{yyyy-MM-dd}.%i.log.gz}
-      max-file-size: ${MARKET_BOT_LOG_MAX_FILE_SIZE:10MB}
-      max-history: ${MARKET_BOT_LOG_MAX_HISTORY:14}
-      total-size-cap: ${MARKET_BOT_LOG_TOTAL_SIZE_CAP:200MB}
-      clean-history-on-start: ${MARKET_BOT_LOG_CLEAN_HISTORY_ON_START:false}
+#  logback:
+#    rollingpolicy:
+#      file-name-pattern: ${MARKET_BOT_LOG_FILE_PATTERN:logs/market-bot.%d{yyyy-MM-dd}.%i.log.gz}
+#      max-file-size: ${MARKET_BOT_LOG_MAX_FILE_SIZE:10MB}
+#      max-history: ${MARKET_BOT_LOG_MAX_HISTORY:14}
+#      total-size-cap: ${MARKET_BOT_LOG_TOTAL_SIZE_CAP:200MB}
+#      clean-history-on-start: ${MARKET_BOT_LOG_CLEAN_HISTORY_ON_START:false}
   level:
     com.prognimak.marketbot: ${MARKET_BOT_LOG_LEVEL:INFO}
-  console:
-    enabled: false
 
 market-bot:
   #finnhub-api-key: ${FINNHUB_API_KEY:xxxx}
@@ -90,7 +88,7 @@ market-bot:
   # Example: 0.8 means the rolling price movement must be at least 0.8% up or down.
   maximal-rolling-price: 0.5
 
-  maximal-rolling-size: 30
+  maximal-rolling-size: 15
 
   # Minimum quote difference required to treat a provider quote as changed.
   quote-change-epsilon: ${MARKET_BOT_QUOTE_CHANGE_EPSILON:0.01}
@@ -117,4 +115,3 @@ market-bot:
     websocket-enabled: true
     scan-trigger-mode: BOTH
     max-results: 100
-

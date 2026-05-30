@@ -7,19 +7,21 @@ import com.prognimak.marketbot.config.AppProperties;
 import com.prognimak.marketbot.dashboard.model.MarketDirection;
 import com.prognimak.marketbot.dashboard.model.MarketScanResult;
 import com.prognimak.marketbot.dashboard.service.MarketDashboardService;
+import com.prognimak.marketbot.entity.AppUserEntity;
 import com.prognimak.marketbot.entity.QuoteEntity;
+import com.prognimak.marketbot.entity.UserSymbolAlertStateEntity;
 import com.prognimak.marketbot.mapper.QuoteMapper;
 import com.prognimak.marketbot.model.Quote;
 import com.prognimak.marketbot.model.WatchlistItem;
 import com.prognimak.marketbot.notification.NotificationRouter;
 import com.prognimak.marketbot.repository.QuoteRepository;
 import com.prognimak.marketbot.entity.AppUserPropertyEntity;
+import com.prognimak.marketbot.repository.UserSymbolAlertStateRepository;
 import com.prognimak.marketbot.user.model.UserAlertSettings;
 import com.prognimak.marketbot.user.service.UserPropertyService;
 import com.prognimak.marketbot.util.Utils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.jspecify.annotations.NonNull;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.context.annotation.Profile;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -51,6 +53,7 @@ public class MarketScannerService {
     private final WatchlistService watchlistService;
     private final UserPropertyService userPropertyService;
     private final NotificationRouter notificationRouter;
+    private final UserSymbolAlertStateRepository alertStateRepository;
 
     private static final String TEXT_COLOR_RED = "\u001B[31m";
     private static final String TEXT_COLOR_GREEN = "\u001B[32m";
@@ -123,7 +126,7 @@ public class MarketScannerService {
 
                 double rollingDeltaSum = Utils.roundDouble(calculateRollingChanges(quotes), 2);
                 /// Persist new Quote
-                quoteRepository.save(quoteEntity);
+                QuoteEntity savedQuoteEntity = savedQuote(quoteEntity);
 
                 boolean haveSendFlag = false;
                 String messageText = null;
@@ -158,22 +161,19 @@ public class MarketScannerService {
                                     formatPercent(alertSettings.rollingThreshold()));
                             continue;
                         }
+                        if (hasAlertAlreadyBeenSent(userId, symbol, savedQuoteEntity)) {
+                            log.info("Share alert skipped for user {} and symbol {}: quote {} was already sent.",
+                                    userId, symbol, savedQuoteEntity.getId());
+                            continue;
+                        }
                         //Send message
                         if (notificationRouter.send(userId, messageText)) {
                             haveSendFlag = true;
+                            markAlertSent(userWatchConfig.getUser(), symbol, savedQuoteEntity);
                         }
-                    }
-                    if (haveSendFlag) {
-                        quoteEntity.setSend(true);
-                        lastPersistedChanges.forEach(q -> q.setSend(true));
                     }
                 }
                 recordDashboardResult(quote, watchlistItem, latestPersistedChange.getPercentChange(), delta, rollingDeltaSum, haveSendFlag, messageText, lastPersistedChanges);
-                if(!haveSendFlag && persistedHistory.unsent() && lastPersistedChanges.size() >=  properties.maximalRollingSize()) {
-                    //Can be set to true afater send message
-                    lastPersistedChanges.stream().filter(
-                            q ->q.isSend()==false).forEach(q -> q.setSend(true));
-                }
 
                // Thread.sleep(500);
             } catch (Exception e) {
@@ -209,12 +209,6 @@ public class MarketScannerService {
     }
 
     private PersistedHistory persistedHistory(String symbol) {
-        List<QuoteEntity> unsentChanges = quoteRepository.findBySymbolAndSendIsFalseOrderByCreatedDesc(
-                symbol, PageRequest.of(0, properties.maximalRollingSize()));
-        if (unsentChanges != null && !unsentChanges.isEmpty()) {
-            return new PersistedHistory(unsentChanges, true);
-        }
-
         List<QuoteEntity> recentChanges = quoteRepository.findBySymbolOrderByCreatedDesc(
                 symbol, PageRequest.of(0, properties.maximalRollingSize()));
         if (recentChanges == null) {
@@ -225,6 +219,35 @@ public class MarketScannerService {
     }
 
     private record PersistedHistory(List<QuoteEntity> changes, boolean unsent) {
+    }
+
+    private QuoteEntity savedQuote(QuoteEntity quoteEntity) {
+        QuoteEntity saved = quoteRepository.save(quoteEntity);
+        return saved == null ? quoteEntity : saved;
+    }
+
+    private boolean hasAlertAlreadyBeenSent(Long userId, String symbol, QuoteEntity quoteEntity) {
+        if (quoteEntity.getId() == null) {
+            return false;
+        }
+        return alertStateRepository.findByUserIdAndSymbolIgnoreCase(userId, symbol)
+                .map(state -> state.getLastSentQuote() != null
+                        && Objects.equals(state.getLastSentQuote().getId(), quoteEntity.getId()))
+                .orElse(false);
+    }
+
+    private void markAlertSent(AppUserEntity user, String symbol, QuoteEntity quoteEntity) {
+        if (quoteEntity.getId() == null) {
+            return;
+        }
+        UserSymbolAlertStateEntity state = alertStateRepository
+                .findByUserIdAndSymbolIgnoreCase(user.getId(), symbol)
+                .orElseGet(UserSymbolAlertStateEntity::new);
+        state.setUser(user);
+        state.setSymbol(symbol);
+        state.setLastSentQuote(quoteEntity);
+        state.setLastSentAt(Instant.now());
+        alertStateRepository.save(state);
     }
 
     private boolean hasQuoteChanged(Quote quote, QuoteEntity latestPersistedChange) {
