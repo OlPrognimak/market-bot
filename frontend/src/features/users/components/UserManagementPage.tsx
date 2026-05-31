@@ -1,12 +1,14 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { createUser, deleteUser, fetchUsers, updateUser } from "@/lib/auth";
+import { createUser, deleteUser, fetchUsers, updateCurrentUser, updateUser } from "@/lib/auth";
 import type { AppUser, UserPayload, UserProperty, UserRole } from "../types";
 import { WatchlistEditor, watchlistProperties, watchlistToRows, type WatchlistRow } from "./WatchlistEditor";
 
 type Props = {
   token: string;
+  currentUser: AppUser;
+  onCurrentUserUpdated?: (user: AppUser) => void;
 };
 
 type FormState = {
@@ -54,16 +56,21 @@ const emptyForm: FormState = {
   whatsAppChatId: ""
 };
 
-export function UserManagementPage({ token }: Props) {
+export function UserManagementPage({ token, currentUser, onCurrentUserUpdated }: Props) {
   const [users, setUsers] = useState<AppUser[]>([]);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const isAdmin = currentUser.role === "ADMIN";
 
   const selectedUser = useMemo(() => users.find((user) => user.id === form.id) ?? null, [form.id, users]);
 
   const loadUsers = async () => {
     setError(null);
+    if (!isAdmin) {
+      setUsers([currentUser]);
+      return;
+    }
     setUsers(await fetchUsers(token));
   };
 
@@ -93,18 +100,31 @@ export function UserManagementPage({ token }: Props) {
     });
   };
 
+  useEffect(() => {
+    if (!isAdmin && users.length === 1 && form.id !== users[0].id) {
+      selectUser(users[0]);
+    }
+  }, [form.id, isAdmin, users]);
+
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     setBusy(true);
     setError(null);
     try {
       const payload = toPayload(form);
-      if (form.id) {
+      if (!isAdmin) {
+        const updatedUser = await updateCurrentUser(token, payload);
+        setUsers([updatedUser]);
+        selectUser(updatedUser);
+        onCurrentUserUpdated?.(updatedUser);
+      } else if (form.id) {
         await updateUser(token, form.id, payload);
       } else {
         await createUser(token, payload);
       }
-      setForm(emptyForm);
+      if (isAdmin) {
+        setForm(emptyForm);
+      }
       await loadUsers();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save user");
@@ -134,10 +154,12 @@ export function UserManagementPage({ token }: Props) {
     <section className="users-layout">
       <div className="users-list">
         <div className="section-header">
-          <h2>Users</h2>
-          <button type="button" className="secondary-button" onClick={() => setForm(emptyForm)}>
-            New User
-          </button>
+          <h2>{isAdmin ? "Users" : "Your Account"}</h2>
+          {isAdmin ? (
+            <button type="button" className="secondary-button" onClick={() => setForm(emptyForm)}>
+              New User
+            </button>
+          ) : null}
         </div>
         <div className="table-frame">
           <table className="users-table">
@@ -164,7 +186,7 @@ export function UserManagementPage({ token }: Props) {
       </div>
 
       <form className="user-form" onSubmit={submit}>
-        <h2>{form.id ? "Update User" : "Create User"}</h2>
+        <h2>{isAdmin ? (form.id ? "Update User" : "Create User") : "Edit User"}</h2>
         <label>
           Username
           <input value={form.username} onChange={(event) => setForm({ ...form, username: event.target.value })} required />
@@ -188,21 +210,25 @@ export function UserManagementPage({ token }: Props) {
           />
         </label>
         <div className="form-row">
-          <label>
-            Role
-            <select value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value as UserRole })}>
-              <option value="USER">User</option>
-              <option value="ADMIN">Admin</option>
-            </select>
-          </label>
-          <label className="checkbox-label">
-            <input
-              checked={form.enabled}
-              onChange={(event) => setForm({ ...form, enabled: event.target.checked })}
-              type="checkbox"
-            />
-            Enabled
-          </label>
+          {isAdmin ? (
+            <>
+              <label>
+                Role
+                <select value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value as UserRole })}>
+                  <option value="USER">User</option>
+                  <option value="ADMIN">Admin</option>
+                </select>
+              </label>
+              <label className="checkbox-label">
+                <input
+                  checked={form.enabled}
+                  onChange={(event) => setForm({ ...form, enabled: event.target.checked })}
+                  type="checkbox"
+                />
+                Enabled
+              </label>
+            </>
+          ) : null}
         </div>
         <label>
           Environment metadata
@@ -265,7 +291,7 @@ export function UserManagementPage({ token }: Props) {
           <button type="submit" disabled={busy}>
             {busy ? "Saving" : form.id ? "Update" : "Create"}
           </button>
-          {form.id ? (
+          {isAdmin && form.id ? (
             <button type="button" className="danger-button" onClick={removeSelected} disabled={busy}>
               Delete
             </button>

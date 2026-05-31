@@ -45,6 +45,15 @@ public class UserManagementService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
+    public List<UserResponse> listVisibleTo(AppUserEntity currentUser) {
+        if (currentUser.getRole() == UserRole.ADMIN) {
+            return list();
+        }
+
+        return List.of(userMapper.toResponse(findUser(currentUser.getId())));
+    }
+
     @Transactional
     public UserResponse create(CreateUserRequest request) {
         validateUsernameAvailable(request.username(), null);

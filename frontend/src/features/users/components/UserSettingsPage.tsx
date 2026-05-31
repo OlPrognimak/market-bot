@@ -64,7 +64,6 @@ export function UserSettingsPage({ token, currentUser, onSave, onBack }: Props) 
           <h1>User Settings</h1>
           <p>Update your watchlist, alert thresholds, and message delivery.</p>
         </div>
-        <button type="button" className="secondary-button" onClick={onBack}>Dashboard</button>
       </header>
       <form className="user-form" onSubmit={submit}>
         <label>

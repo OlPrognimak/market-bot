@@ -27,6 +27,76 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+.app-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+}
+
+.app-sidebar {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  padding: 18px 14px;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.app-sidebar-header {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 18px;
+  padding: 0 6px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.app-sidebar-header strong {
+  font-size: 17px;
+}
+
+.app-sidebar-header span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.app-nav {
+  display: grid;
+  gap: 6px;
+}
+
+.app-nav a {
+  display: flex;
+  align-items: center;
+  min-height: 38px;
+  padding: 0 10px;
+  border-radius: 6px;
+  color: var(--text);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.app-nav a:hover {
+  background: var(--surface-muted);
+}
+
+.app-nav a.active {
+  background: var(--accent);
+  color: #ffffff;
+}
+
+.app-nav a.logout-link {
+  margin-top: 10px;
+  color: var(--negative);
+}
+
+.app-nav a.logout-link:hover {
+  background: var(--negative-bg);
+}
+
+.app-content {
+  min-width: 0;
+}
+
 button,
 input,
 select,
@@ -691,6 +761,63 @@ tbody tr:hover {
 .range-tabs button.active {
   background: var(--accent);
   color: #ffffff;
+}
+
+@media (max-width: 760px) {
+  .app-shell {
+    display: block;
+  }
+
+  .app-sidebar {
+    position: sticky;
+    z-index: 10;
+    height: auto;
+    padding: 10px 12px;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .app-sidebar-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 8px;
+    padding: 0;
+    border-bottom: 0;
+  }
+
+  .app-sidebar-header span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .app-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .app-nav a {
+    min-height: 36px;
+    padding: 0 12px;
+    border: 1px solid var(--border);
+    background: #ffffff;
+  }
+
+  .app-nav a.active {
+    border-color: var(--accent);
+  }
+
+  .app-nav a.logout-link {
+    margin-top: 0;
+    margin-left: auto;
+  }
+
+  .dashboard {
+    padding: 16px;
+  }
 }
 
 .chart-panel {

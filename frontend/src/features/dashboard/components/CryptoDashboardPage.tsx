@@ -17,7 +17,7 @@ type Props = {
   onOpenSettings: () => void;
 };
 
-export function CryptoDashboardPage({ token, currentUser, onBack, onLogout, onOpenSettings }: Props) {
+export function CryptoDashboardPage({ token, currentUser }: Props) {
   const { snapshot, fetchSnapshot, triggerScan } = useCryptoDashboard(token);
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<CryptoSortKey>("backend");
@@ -91,17 +91,6 @@ export function CryptoDashboardPage({ token, currentUser, onBack, onLogout, onOp
         <div className="header-status">
           <span>Last scan: {formatDateTime(snapshot?.lastScanAt)}</span>
           <span>{currentUser.displayName} ({currentUser.role})</span>
-          <div className="header-actions">
-            <button type="button" className="secondary-button" onClick={onBack}>
-              Shares
-            </button>
-            <button type="button" className="secondary-button" onClick={onOpenSettings}>
-              Settings
-            </button>
-            <button type="button" className="secondary-button" onClick={onLogout}>
-              Logout
-            </button>
-          </div>
         </div>
       </header>
 

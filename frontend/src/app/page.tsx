@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { ReactNode } from "react";
 import { CryptoDashboardPage } from "@/features/dashboard/components/CryptoDashboardPage";
 import { DashboardPage } from "@/features/dashboard/components/DashboardPage";
 import { LoginPage } from "@/features/users/components/LoginPage";
@@ -10,9 +11,11 @@ import { UserSettingsPage } from "@/features/users/components/UserSettingsPage";
 import { clearSession, fetchCurrentUser, loadStoredSession, storeSession } from "@/lib/auth";
 import type { AuthSession } from "@/features/users/types";
 
+type AppView = "dashboard" | "crypto" | "users" | "settings";
+
 export default function Home() {
   const [session, setSession] = useState<AuthSession | null>(null);
-  const [view, setView] = useState<"dashboard" | "crypto" | "users" | "settings">("dashboard");
+  const [view, setView] = useState<AppView>("dashboard");
   const [authView, setAuthView] = useState<"login" | "signup">("login");
   const [loading, setLoading] = useState(true);
 
@@ -56,13 +59,18 @@ export default function Home() {
     return <main className="dashboard">Session expired. Reload the page to sign in again.</main>;
   }
 
+  const goToView = (nextView: AppView) => {
+    setView(nextView);
+    window.location.hash = nextView === "dashboard" ? "shares" : nextView;
+  };
+
   return (
-    <>
+    <AppShell session={session} view={view} onNavigate={goToView} onLogout={logout}>
       {view === "settings" ? (
         <UserSettingsPage
           token={session.token}
           currentUser={session.user}
-          onBack={() => setView("dashboard")}
+          onBack={() => goToView("dashboard")}
           onSave={(user) => {
             const refreshedSession = { token: session.token, user };
             storeSession(refreshedSession);
@@ -73,38 +81,97 @@ export default function Home() {
         <CryptoDashboardPage
           token={session.token}
           currentUser={session.user}
-          onBack={() => setView("dashboard")}
+          onBack={() => goToView("dashboard")}
           onLogout={logout}
-          onOpenSettings={() => setView("settings")}
+          onOpenSettings={() => goToView("settings")}
         />
-      ) : view === "users" && session.user.role === "ADMIN" ? (
+      ) : view === "users" ? (
         <main className="dashboard">
           <header className="dashboard-header">
             <div>
-              <h1>User Management</h1>
-              <p>Create, update, and remove user access.</p>
-            </div>
-            <div className="header-actions">
-              <button type="button" className="secondary-button" onClick={() => setView("dashboard")}>
-                Dashboard
-              </button>
-              <button type="button" className="secondary-button" onClick={logout}>
-                Logout
-              </button>
+              <h1>{session.user.role === "ADMIN" ? "User Management" : "Account"}</h1>
+              <p>{session.user.role === "ADMIN" ? "Create, update, and remove user access." : "Update your account and personal scanner settings."}</p>
             </div>
           </header>
-          <UserManagementPage token={session.token} />
+          <UserManagementPage
+            token={session.token}
+            currentUser={session.user}
+            onCurrentUserUpdated={(user) => {
+              const refreshedSession = { token: session.token, user };
+              storeSession(refreshedSession);
+              setSession(refreshedSession);
+            }}
+          />
         </main>
       ) : (
         <DashboardPage
           token={session.token}
           currentUser={session.user}
           onLogout={logout}
-          onOpenUsers={() => setView("users")}
-          onOpenSettings={() => setView("settings")}
-          onOpenCrypto={() => setView("crypto")}
+          onOpenUsers={() => goToView("users")}
+          onOpenSettings={() => goToView("settings")}
+          onOpenCrypto={() => goToView("crypto")}
         />
       )}
-    </>
+    </AppShell>
+  );
+}
+
+function AppShell({
+  session,
+  view,
+  onNavigate,
+  onLogout,
+  children
+}: {
+  session: AuthSession;
+  view: AppView;
+  onNavigate: (view: AppView) => void;
+  onLogout: () => void;
+  children: ReactNode;
+}) {
+  const links: Array<{ view: AppView; label: string }> = [
+    { view: "dashboard", label: "Shares" },
+    { view: "crypto", label: "Crypto" },
+    { view: "settings", label: "Settings" },
+    { view: "users", label: session.user.role === "ADMIN" ? "Users" : "Account" }
+  ];
+
+  return (
+    <div className="app-shell">
+      <aside className="app-sidebar">
+        <div className="app-sidebar-header">
+          <strong>Market Bot</strong>
+          <span>{session.user.displayName}</span>
+        </div>
+        <nav className="app-nav" aria-label="Main navigation">
+          {links
+            .map((link) => (
+              <a
+                key={link.view}
+                href={`#${link.view === "dashboard" ? "shares" : link.view}`}
+                className={view === link.view ? "active" : ""}
+                onClick={(event) => {
+                  event.preventDefault();
+                  onNavigate(link.view);
+                }}
+              >
+                {link.label}
+              </a>
+            ))}
+          <a
+            href="#logout"
+            className="logout-link"
+            onClick={(event) => {
+              event.preventDefault();
+              onLogout();
+            }}
+          >
+            Logout
+          </a>
+        </nav>
+      </aside>
+      <div className="app-content">{children}</div>
+    </div>
   );
 }

@@ -30,9 +30,8 @@ public class UserManagementController {
     private final UserManagementService userManagementService;
 
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN')")
-    public List<UserResponse> list() {
-        return userManagementService.list();
+    public List<UserResponse> list(@AuthenticationPrincipal AppUserPrincipal principal) {
+        return userManagementService.listVisibleTo(principal.user());
     }
 
     @PostMapping
