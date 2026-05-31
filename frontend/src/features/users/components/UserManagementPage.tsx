@@ -243,14 +243,14 @@ export function UserManagementPage({ token, currentUser, onCurrentUserUpdated }:
           <WatchlistEditor rows={form.watchlistRows} setRows={(update) => setForm((current) => ({
             ...current,
             watchlistRows: typeof update === "function" ? update(current.watchlistRows) : update
-          }))} />
+          }))} token={token} catalogType="stocks" pickerLabel="Symbol" />
         </fieldset>
         <fieldset>
           <legend>Crypto Coins</legend>
           <WatchlistEditor rows={form.cryptoRows} setRows={(update) => setForm((current) => ({
             ...current,
             cryptoRows: typeof update === "function" ? update(current.cryptoRows) : update
-          }))} addLabel="Add Coin" />
+          }))} addLabel="Add Manually" token={token} catalogType="crypto" pickerLabel="Coin" />
         </fieldset>
         <fieldset>
           <legend>Alert Settings</legend>

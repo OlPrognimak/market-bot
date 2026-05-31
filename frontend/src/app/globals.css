@@ -530,7 +530,7 @@ button:disabled {
 }
 
 .settings-table {
-  min-width: 720px;
+  min-width: 820px;
 }
 
 .settings-table td {
@@ -544,9 +544,45 @@ button:disabled {
 .settings-table th:nth-child(3),
 .settings-table td:nth-child(3),
 .settings-table th:nth-child(4),
-.settings-table td:nth-child(4) {
-  width: 1%;
+.settings-table td:nth-child(4),
+.settings-table th:nth-child(5),
+.settings-table td:nth-child(5) {
   text-align: center;
+  white-space: nowrap;
+}
+
+.settings-table th:nth-child(3),
+.settings-table td:nth-child(3) {
+  width: 78px;
+}
+
+.settings-table th:nth-child(4),
+.settings-table td:nth-child(4) {
+  width: 76px;
+}
+
+.settings-table th:nth-child(5),
+.settings-table td:nth-child(5) {
+  width: 70px;
+}
+
+.settings-table td:nth-child(3),
+.settings-table td:nth-child(4),
+.settings-table td:nth-child(5) {
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+.settings-table td:nth-child(3) .compact-checkbox {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.compact-action-button {
+  height: 34px;
+  min-width: 54px;
+  padding: 0 10px;
 }
 
 .disabled-property-row {
@@ -723,8 +759,9 @@ tbody tr:hover {
 }
 
 .icon-button {
-  width: 34px;
-  height: 34px;
+  width: 36px;
+  min-width: 36px;
+  height: 36px;
   padding: 0;
 }
 
@@ -734,6 +771,7 @@ tbody tr:hover {
   border-color: var(--negative);
   background: #ffffff;
   color: var(--negative);
+  line-height: 1;
 }
 
 .delete-icon-button:hover {
@@ -741,9 +779,59 @@ tbody tr:hover {
 }
 
 .delete-icon-button svg {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   fill: currentColor;
+}
+
+.symbol-picker {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+.symbol-picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.symbol-picker-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 8px;
+  max-height: 260px;
+  overflow: auto;
+}
+
+.symbol-picker-list button {
+  height: auto;
+  display: grid;
+  gap: 3px;
+  padding: 9px 10px;
+  border-color: var(--border);
+  background: #ffffff;
+  color: var(--text);
+  text-align: left;
+}
+
+.symbol-picker-list button:hover {
+  border-color: var(--accent);
+  background: var(--surface-muted);
+}
+
+.symbol-picker-list span {
+  font-weight: 700;
+}
+
+.symbol-picker-list small {
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .range-tabs {

@@ -80,11 +80,11 @@ export function UserSettingsPage({ token, currentUser, onSave, onBack }: Props) 
         </label>
         <fieldset>
           <legend>Stock Watchlist</legend>
-          <WatchlistEditor rows={watchlistRows} setRows={setWatchlistRows} />
+          <WatchlistEditor rows={watchlistRows} setRows={setWatchlistRows} token={token} catalogType="stocks" pickerLabel="Symbol" />
         </fieldset>
         <fieldset>
           <legend>Crypto Coins</legend>
-          <WatchlistEditor rows={cryptoRows} setRows={setCryptoRows} addLabel="Add Coin" />
+          <WatchlistEditor rows={cryptoRows} setRows={setCryptoRows} addLabel="Add Manually" token={token} catalogType="crypto" pickerLabel="Coin" />
         </fieldset>
         <fieldset>
           <legend>Alert Settings</legend>

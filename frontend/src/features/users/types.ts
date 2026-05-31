@@ -50,3 +50,8 @@ export type SignUpPayload = {
   metadata: Record<string, string>;
   properties: UserProperty[];
 };
+
+export type WatchlistCatalogItem = {
+  symbol: string;
+  name: string;
+};
