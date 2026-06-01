@@ -55,3 +55,9 @@ export type WatchlistCatalogItem = {
   symbol: string;
   name: string;
 };
+
+export type SymbolValidationResult = {
+  symbol: string;
+  valid: boolean;
+  message?: string | null;
+};

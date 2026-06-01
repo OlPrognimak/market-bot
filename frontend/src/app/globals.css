@@ -541,6 +541,27 @@ button:disabled {
   min-width: 120px;
 }
 
+.settings-table input[aria-invalid="true"] {
+  border-color: var(--negative);
+  background: #fff8f6;
+}
+
+.field-note,
+.field-error {
+  margin-top: 5px;
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.field-note {
+  color: var(--muted);
+}
+
+.field-error {
+  color: var(--negative);
+  font-weight: 700;
+}
+
 .settings-table th:nth-child(3),
 .settings-table td:nth-child(3),
 .settings-table th:nth-child(4),
@@ -585,12 +606,39 @@ button:disabled {
   padding: 0 10px;
 }
 
+.active-toggle-button {
+  transform: translateY(1px);
+  border-color: var(--accent-dark);
+  background: var(--accent);
+  color: #ffffff;
+  box-shadow: inset 0 2px 4px rgba(23, 33, 43, 0.22);
+}
+
+.active-toggle-button:hover {
+  background: var(--accent-dark);
+}
+
 .disabled-property-row {
   background: var(--negative-bg);
 }
 
 .disabled-property-row:hover {
   background: #f9d8d2;
+}
+
+.selected-property-row {
+  background: #eef2f5;
+}
+
+.selected-property-row:hover {
+  background: #e3e9ee;
+}
+
+.symbol-picker-row td {
+  padding: 0;
+  background: #f7fafc;
+  border-top: 1px solid #c8d4df;
+  border-bottom: 1px solid #c8d4df;
 }
 
 .symbol-link {
@@ -787,11 +835,11 @@ tbody tr:hover {
 .symbol-picker {
   display: grid;
   gap: 10px;
-  margin-top: 10px;
+  margin: 0;
   padding: 12px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: #ffffff;
+  border: 0;
+  border-left: 4px solid var(--accent);
+  background: #f7fafc;
 }
 
 .symbol-picker-header {
@@ -815,14 +863,14 @@ tbody tr:hover {
   gap: 3px;
   padding: 9px 10px;
   border-color: var(--border);
-  background: #ffffff;
+  background: #eef4f8;
   color: var(--text);
   text-align: left;
 }
 
 .symbol-picker-list button:hover {
   border-color: var(--accent);
-  background: var(--surface-muted);
+  background: #e2edf5;
 }
 
 .symbol-picker-list span {

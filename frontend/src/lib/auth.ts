@@ -1,7 +1,7 @@
 "use client";
 
 import { backendHttpUrl } from "@/lib/websocket";
-import type { AppUser, AuthSession, SignUpPayload, UserPayload, WatchlistCatalogItem } from "@/features/users/types";
+import type { AppUser, AuthSession, SignUpPayload, SymbolValidationResult, UserPayload, WatchlistCatalogItem } from "@/features/users/types";
 
 const SESSION_KEY = "market-bot-session";
 
@@ -124,6 +124,11 @@ export async function deleteUser(token: string, userId: number): Promise<void> {
 export async function fetchWatchlistCatalog(token: string, type: "stocks" | "crypto"): Promise<WatchlistCatalogItem[]> {
   const response = await authFetch(token, `/api/watchlists/${type}`);
   return response.json() as Promise<WatchlistCatalogItem[]>;
+}
+
+export async function validateWatchlistSymbol(token: string, type: "stocks" | "crypto", symbol: string): Promise<SymbolValidationResult> {
+  const response = await authFetch(token, `/api/watchlists/${type}/validate?symbol=${encodeURIComponent(symbol)}`);
+  return response.json() as Promise<SymbolValidationResult>;
 }
 
 export async function authFetch(token: string, path: string, init: RequestInit = {}): Promise<Response> {

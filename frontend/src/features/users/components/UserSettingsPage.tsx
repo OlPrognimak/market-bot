@@ -27,6 +27,9 @@ export function UserSettingsPage({ token, currentUser, onSave, onBack }: Props) 
   const [whatsAppChatId, setWhatsAppChatId] = useState(property(currentUser.properties, "BOT", "whatsapp-chat-id")?.propertyValue ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [watchlistInvalid, setWatchlistInvalid] = useState(false);
+  const [cryptoInvalid, setCryptoInvalid] = useState(false);
+  const settingsInvalid = watchlistInvalid || cryptoInvalid;
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -80,11 +83,26 @@ export function UserSettingsPage({ token, currentUser, onSave, onBack }: Props) 
         </label>
         <fieldset>
           <legend>Stock Watchlist</legend>
-          <WatchlistEditor rows={watchlistRows} setRows={setWatchlistRows} token={token} catalogType="stocks" pickerLabel="Symbol" />
+          <WatchlistEditor
+            rows={watchlistRows}
+            setRows={setWatchlistRows}
+            token={token}
+            catalogType="stocks"
+            pickerLabel="Symbol"
+            onValidationStateChange={setWatchlistInvalid}
+          />
         </fieldset>
         <fieldset>
           <legend>Crypto Coins</legend>
-          <WatchlistEditor rows={cryptoRows} setRows={setCryptoRows} addLabel="Add Manually" token={token} catalogType="crypto" pickerLabel="Coin" />
+          <WatchlistEditor
+            rows={cryptoRows}
+            setRows={setCryptoRows}
+            addLabel="Add Manually"
+            token={token}
+            catalogType="crypto"
+            pickerLabel="Coin"
+            onValidationStateChange={setCryptoInvalid}
+          />
         </fieldset>
         <fieldset>
           <legend>Alert Settings</legend>
@@ -122,7 +140,7 @@ export function UserSettingsPage({ token, currentUser, onSave, onBack }: Props) 
         </fieldset>
         {error ? <div className="error-banner">{error}</div> : null}
         <div className="form-actions">
-          <button type="submit" disabled={busy || !displayName || !email}>{busy ? "Saving" : "Save Settings"}</button>
+          <button type="submit" disabled={busy || settingsInvalid || !displayName || !email}>{busy ? "Saving" : "Save Settings"}</button>
         </div>
       </form>
     </main>
