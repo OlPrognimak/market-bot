@@ -1,7 +1,17 @@
 "use client";
 
 import { backendHttpUrl } from "@/lib/websocket";
-import type { AppUser, AuthSession, SignUpPayload, SymbolValidationResult, UserPayload, WatchlistCatalogItem } from "@/features/users/types";
+import type {
+  AppUser,
+  AuthSession,
+  CatalogItemPayload,
+  CryptoCatalogItem,
+  SignUpPayload,
+  StockCatalogItem,
+  SymbolValidationResult,
+  UserPayload,
+  WatchlistCatalogItem
+} from "@/features/users/types";
 
 const SESSION_KEY = "market-bot-session";
 
@@ -129,6 +139,40 @@ export async function fetchWatchlistCatalog(token: string, type: "stocks" | "cry
 export async function validateWatchlistSymbol(token: string, type: "stocks" | "crypto", symbol: string): Promise<SymbolValidationResult> {
   const response = await authFetch(token, `/api/watchlists/${type}/validate?symbol=${encodeURIComponent(symbol)}`);
   return response.json() as Promise<SymbolValidationResult>;
+}
+
+export async function fetchStockCatalog(token: string): Promise<StockCatalogItem[]> {
+  const response = await authFetch(token, "/api/catalog/stocks");
+  return response.json() as Promise<StockCatalogItem[]>;
+}
+
+export async function fetchCryptoCatalog(token: string): Promise<CryptoCatalogItem[]> {
+  const response = await authFetch(token, "/api/catalog/crypto");
+  return response.json() as Promise<CryptoCatalogItem[]>;
+}
+
+export async function saveStockCatalogItem(token: string, payload: CatalogItemPayload, id?: number): Promise<StockCatalogItem> {
+  const response = await authFetch(token, id ? `/api/catalog/stocks/${id}` : "/api/catalog/stocks", {
+    method: id ? "PUT" : "POST",
+    body: JSON.stringify(payload)
+  });
+  return response.json() as Promise<StockCatalogItem>;
+}
+
+export async function saveCryptoCatalogItem(token: string, payload: CatalogItemPayload, id?: number): Promise<CryptoCatalogItem> {
+  const response = await authFetch(token, id ? `/api/catalog/crypto/${id}` : "/api/catalog/crypto", {
+    method: id ? "PUT" : "POST",
+    body: JSON.stringify(payload)
+  });
+  return response.json() as Promise<CryptoCatalogItem>;
+}
+
+export async function deleteStockCatalogItem(token: string, id: number): Promise<void> {
+  await authFetch(token, `/api/catalog/stocks/${id}`, { method: "DELETE" });
+}
+
+export async function deleteCryptoCatalogItem(token: string, id: number): Promise<void> {
+  await authFetch(token, `/api/catalog/crypto/${id}`, { method: "DELETE" });
 }
 
 export async function authFetch(token: string, path: string, init: RequestInit = {}): Promise<Response> {

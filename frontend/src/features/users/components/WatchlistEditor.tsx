@@ -22,9 +22,21 @@ type Props = {
   onValidationStateChange?: (invalid: boolean) => void;
 };
 
+type WatchlistTableFilters = {
+  symbol: string;
+  name: string;
+  status: "ALL" | "ENABLED" | "DISABLED";
+};
+
 type PropertyRowsOptions = {
   propertyType?: UserProperty["propertyType"];
   description?: string;
+};
+
+const emptyTableFilters: WatchlistTableFilters = {
+  symbol: "",
+  name: "",
+  status: "ALL"
 };
 
 export function WatchlistEditor({
@@ -44,6 +56,8 @@ export function WatchlistEditor({
   const [validationErrors, setValidationErrors] = useState<Record<number, string>>({});
   const [validatingRows, setValidatingRows] = useState<Record<number, boolean>>({});
   const [pendingValidationRows, setPendingValidationRows] = useState<Record<number, boolean>>({});
+  const [pickerFilter, setPickerFilter] = useState("");
+  const [tableFilters, setTableFilters] = useState<WatchlistTableFilters>(emptyTableFilters);
 
   const selectedSymbols = useMemo(
     () => new Set(rows.map((row) => normalizeSymbol(row.propertyName)).filter(Boolean)),
@@ -53,6 +67,38 @@ export function WatchlistEditor({
     () => catalog.filter((item) => !selectedSymbols.has(normalizeSymbol(item.symbol))),
     [catalog, selectedSymbols]
   );
+  const filteredCatalog = useMemo(() => {
+    const query = pickerFilter.trim().toLowerCase();
+    if (!query) {
+      return availableCatalog;
+    }
+    return availableCatalog.filter((item) =>
+      item.symbol.toLowerCase().includes(query)
+      || item.name.toLowerCase().includes(query)
+    );
+  }, [availableCatalog, pickerFilter]);
+  const filteredRowEntries = useMemo(() => {
+    const symbolFilter = tableFilters.symbol.trim().toLowerCase();
+    const nameFilter = tableFilters.name.trim().toLowerCase();
+
+    return rows
+      .map((row, index) => ({ row, index }))
+      .filter(({ row }) => {
+        if (tableFilters.status === "ENABLED" && !row.enabled) {
+          return false;
+        }
+        if (tableFilters.status === "DISABLED" && row.enabled) {
+          return false;
+        }
+        if (symbolFilter && !row.propertyName.toLowerCase().includes(symbolFilter)) {
+          return false;
+        }
+        if (nameFilter && !row.propertyValue.toLowerCase().includes(nameFilter)) {
+          return false;
+        }
+        return true;
+      });
+  }, [rows, tableFilters]);
 
   const validationInvalid = Object.keys(validationErrors).length > 0
     || Object.keys(validatingRows).length > 0
@@ -101,9 +147,11 @@ export function WatchlistEditor({
       (mode.type === "edit" && pickerMode?.type === "edit" && pickerMode.index === mode.index)
     ) {
       setPickerMode(null);
+      setPickerFilter("");
       return;
     }
     setPickerMode(mode);
+    setPickerFilter("");
     if (catalogLoaded) {
       return;
     }
@@ -131,6 +179,7 @@ export function WatchlistEditor({
       clearPendingValidation(pickerMode.index);
     }
     setPickerMode(null);
+    setPickerFilter("");
   };
 
   const validateManualSymbol = async (index: number, symbol: string) => {
@@ -185,6 +234,34 @@ export function WatchlistEditor({
 
   return (
     <>
+      <section className="settings-watchlist-filter" aria-label={`${pickerLabel} watchlist filters`}>
+        <input
+          value={tableFilters.symbol}
+          onChange={(event) => setTableFilters((current) => ({ ...current, symbol: event.target.value }))}
+          placeholder="Filter symbol"
+          aria-label={`Filter ${pickerLabel.toLowerCase()} symbols`}
+        />
+        <input
+          value={tableFilters.name}
+          onChange={(event) => setTableFilters((current) => ({ ...current, name: event.target.value }))}
+          placeholder="Filter name"
+          aria-label={`Filter ${pickerLabel.toLowerCase()} names`}
+        />
+        <select
+          value={tableFilters.status}
+          onChange={(event) => setTableFilters((current) => ({ ...current, status: event.target.value as WatchlistTableFilters["status"] }))}
+          aria-label={`Filter ${pickerLabel.toLowerCase()} enabled state`}
+        >
+          <option value="ALL">All statuses</option>
+          <option value="ENABLED">Enabled</option>
+          <option value="DISABLED">Disabled</option>
+        </select>
+        {tableFilters.symbol || tableFilters.name || tableFilters.status !== "ALL" ? (
+          <button type="button" className="secondary-button compact-action-button" onClick={() => setTableFilters(emptyTableFilters)}>
+            Clear
+          </button>
+        ) : null}
+      </section>
       <div className="table-frame settings-table-frame">
         <table className="settings-table">
           <thead>
@@ -197,7 +274,7 @@ export function WatchlistEditor({
             </tr>
           </thead>
           <tbody>
-            {rows.map((row, index) => (
+            {filteredRowEntries.map(({ row, index }) => (
               <Fragment key={row.id ?? `new-${index}`}>
                 <tr className={rowClassName(row, pickerMode?.type === "edit" && pickerMode.index === index)}>
                   <td>
@@ -266,6 +343,11 @@ export function WatchlistEditor({
                 ) : null}
               </Fragment>
             ))}
+            {rows.length > 0 && filteredRowEntries.length === 0 ? (
+              <tr>
+                <td colSpan={5}>No watchlist rows match the current filters.</td>
+              </tr>
+            ) : null}
             {pickerMode?.type === "add" ? (
               <tr className="symbol-picker-row">
                 <td colSpan={5}>{renderPicker(`Add ${pickerLabel}`)}</td>
@@ -292,17 +374,36 @@ export function WatchlistEditor({
       <div className="symbol-picker">
         <div className="symbol-picker-header">
           <strong>{title}</strong>
-          <button type="button" className="link-button" onClick={() => setPickerMode(null)}>
+          <button type="button" className="link-button" onClick={() => {
+            setPickerMode(null);
+            setPickerFilter("");
+          }}>
             Close
           </button>
+        </div>
+        <div className="symbol-picker-filter">
+          <input
+            value={pickerFilter}
+            onChange={(event) => setPickerFilter(event.target.value)}
+            placeholder={`Filter ${pickerLabel.toLowerCase()} by symbol or name`}
+            aria-label={`Filter ${pickerLabel.toLowerCase()} list`}
+          />
+          {pickerFilter ? (
+            <button type="button" className="secondary-button compact-action-button" onClick={() => setPickerFilter("")}>
+              Clear
+            </button>
+          ) : null}
         </div>
         {catalogError ? <div className="error-banner">{catalogError}</div> : null}
         {catalogLoading ? <div className="empty-state">Loading symbols</div> : null}
         {!catalogLoading && !catalogError && availableCatalog.length === 0 ? (
           <div className="empty-state">No available symbols</div>
         ) : null}
+        {!catalogLoading && !catalogError && availableCatalog.length > 0 && filteredCatalog.length === 0 ? (
+          <div className="empty-state">No symbols match this filter</div>
+        ) : null}
         <div className="symbol-picker-list">
-          {availableCatalog.map((item) => (
+          {filteredCatalog.map((item) => (
             <button key={item.symbol} type="button" onClick={() => selectCatalogItem(item)}>
               <span>{item.symbol}</span>
               <small>{item.name}</small>

@@ -27,9 +27,18 @@ public class CryptoWatchlistService {
 
     private final AppProperties properties;
     private final ResourceLoader resourceLoader;
+    private final CryptoCoinCatalogService cryptoCoinCatalogService;
     private final ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
 
     public Map<String, CryptoWatchlistItem> watchlist() {
+        Map<String, CryptoWatchlistItem> databaseWatchlist = cryptoCoinCatalogService.enabledWatchlist();
+        if (!databaseWatchlist.isEmpty()) {
+            return databaseWatchlist;
+        }
+        return configuredWatchlistFromSource();
+    }
+
+    public Map<String, CryptoWatchlistItem> configuredWatchlistFromSource() {
         String watchlistFile = properties.crypto().watchlistFile();
         if (watchlistFile == null || watchlistFile.isBlank()) {
             return configuredWatchlist();

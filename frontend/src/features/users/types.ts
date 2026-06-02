@@ -61,3 +61,35 @@ export type SymbolValidationResult = {
   valid: boolean;
   message?: string | null;
 };
+
+export type StockCatalogItem = {
+  id: number;
+  symbol: string;
+  name: string;
+  region?: string | null;
+  sector?: string | null;
+  exchange?: string | null;
+  currency?: string | null;
+  enabled: boolean;
+  priority: string;
+};
+
+export type CryptoCatalogItem = {
+  id: number;
+  symbol: string;
+  name: string;
+  quoteAsset: string;
+  pairSymbol: string;
+  enabled: boolean;
+};
+
+export type CatalogItemPayload = {
+  symbol: string;
+  name: string;
+  region?: string | null;
+  sector?: string | null;
+  exchange?: string | null;
+  currency?: string | null;
+  enabled?: boolean;
+  priority?: string | null;
+};

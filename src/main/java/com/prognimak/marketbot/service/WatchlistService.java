@@ -27,9 +27,18 @@ public class WatchlistService {
 
     private final AppProperties properties;
     private final ResourceLoader resourceLoader;
+    private final StockCatalogService stockCatalogService;
     private final ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
 
     public Map<String, WatchlistItem> watchlist() {
+        Map<String, WatchlistItem> databaseWatchlist = stockCatalogService.enabledWatchlist();
+        if (!databaseWatchlist.isEmpty()) {
+            return databaseWatchlist;
+        }
+        return configuredWatchlistFromSource();
+    }
+
+    public Map<String, WatchlistItem> configuredWatchlistFromSource() {
         String watchlistFile = properties.shares().watchlistFile();
         if (watchlistFile == null || watchlistFile.isBlank()) {
             return configuredWatchlist();
@@ -75,7 +84,7 @@ public class WatchlistService {
         return watchlist;
     }
 
-    private Map<String, WatchlistItem> readWatchlist(InputStream inputStream) throws IOException {
+    Map<String, WatchlistItem> readWatchlist(InputStream inputStream) throws IOException {
         Map<String, Object> root = yamlMapper.readValue(inputStream, YAML_MAP_TYPE);
         if (root == null || root.isEmpty()) {
             return Map.of();

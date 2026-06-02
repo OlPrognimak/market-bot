@@ -1,8 +1,5 @@
 package com.prognimak.marketbot.service;
 
-import com.prognimak.marketbot.client.BinanceClient;
-import com.prognimak.marketbot.client.YahooFinanceClient;
-import com.prognimak.marketbot.model.BinanceExchangeInfoResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -11,10 +8,8 @@ import java.util.Locale;
 @Service
 @RequiredArgsConstructor
 public class SymbolValidationService {
-    private static final String QUOTE_ASSET = "USDT";
-
-    private final YahooFinanceClient yahooFinanceClient;
-    private final BinanceClient binanceClient;
+    private final StockCatalogService stockCatalogService;
+    private final CryptoCoinCatalogService cryptoCoinCatalogService;
 
     public SymbolValidationResult validateStock(String symbol) {
         String normalizedSymbol = normalize(symbol);
@@ -23,7 +18,7 @@ public class SymbolValidationService {
         }
 
         try {
-            yahooFinanceClient.getQuote(normalizedSymbol);
+            stockCatalogService.ensureProviderSymbol(normalizedSymbol, normalizedSymbol);
             return SymbolValidationResult.valid(normalizedSymbol);
         } catch (Exception e) {
             return SymbolValidationResult.invalid(normalizedSymbol, "Share symbol was not found by Yahoo Finance");
@@ -36,21 +31,9 @@ public class SymbolValidationService {
             return SymbolValidationResult.invalid(normalizedSymbol, "Coin symbol is empty");
         }
 
-        String pairSymbol = normalizedSymbol.endsWith(QUOTE_ASSET) ? normalizedSymbol : normalizedSymbol + QUOTE_ASSET;
         try {
-            BinanceExchangeInfoResponse response = binanceClient.exchangeInfo(pairSymbol);
-            boolean valid = response != null
-                    && response.symbols() != null
-                    && response.symbols().stream().anyMatch(pair ->
-                    pairSymbol.equals(pair.symbol())
-                            && normalizedSymbol.equals(pair.baseAsset())
-                            && QUOTE_ASSET.equals(pair.quoteAsset())
-                            && "TRADING".equals(pair.status())
-                            && (pair.isSpotTradingAllowed() == null || pair.isSpotTradingAllowed())
-            );
-            return valid
-                    ? SymbolValidationResult.valid(normalizedSymbol)
-                    : SymbolValidationResult.invalid(normalizedSymbol, "Crypto coin was not found as active USDT spot pair on Binance");
+            cryptoCoinCatalogService.ensureProviderSymbol(normalizedSymbol, normalizedSymbol);
+            return SymbolValidationResult.valid(normalizedSymbol);
         } catch (Exception e) {
             return SymbolValidationResult.invalid(normalizedSymbol, "Crypto coin was not found as active USDT spot pair on Binance");
         }

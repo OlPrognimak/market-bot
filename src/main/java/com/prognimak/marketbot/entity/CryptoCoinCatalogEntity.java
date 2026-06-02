@@ -1,0 +1,39 @@
+package com.prognimak.marketbot.entity;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
+import lombok.Getter;
+import lombok.Setter;
+
+@Entity
+@Table(
+        name = "crypto_coin_catalog",
+        uniqueConstraints = @UniqueConstraint(name = "uk_crypto_coin_catalog_symbol", columnNames = "symbol")
+)
+@Getter
+@Setter
+public class CryptoCoinCatalogEntity extends AbstractEntity {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(nullable = false, length = 40)
+    private String symbol;
+
+    @Column(nullable = false, length = 160)
+    private String name;
+
+    @Column(nullable = false, length = 40)
+    private String quoteAsset = "USDT";
+
+    @Column(nullable = false, length = 60)
+    private String pairSymbol;
+
+    @Column(nullable = false)
+    private boolean enabled = true;
+}

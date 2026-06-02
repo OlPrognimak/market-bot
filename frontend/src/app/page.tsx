@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { CryptoDashboardPage } from "@/features/dashboard/components/CryptoDashboardPage";
 import { DashboardPage } from "@/features/dashboard/components/DashboardPage";
+import { CatalogManagementPage } from "@/features/users/components/CatalogManagementPage";
 import { LoginPage } from "@/features/users/components/LoginPage";
 import { SignUpPage } from "@/features/users/components/SignUpPage";
 import { UserManagementPage } from "@/features/users/components/UserManagementPage";
@@ -11,7 +12,7 @@ import { UserSettingsPage } from "@/features/users/components/UserSettingsPage";
 import { clearSession, fetchCurrentUser, loadStoredSession, storeSession } from "@/lib/auth";
 import type { AuthSession } from "@/features/users/types";
 
-type AppView = "dashboard" | "crypto" | "users" | "settings";
+type AppView = "dashboard" | "crypto" | "users" | "settings" | "catalog";
 
 export default function Home() {
   const [session, setSession] = useState<AuthSession | null>(null);
@@ -103,6 +104,16 @@ export default function Home() {
             }}
           />
         </main>
+      ) : view === "catalog" && session.user.role === "ADMIN" ? (
+        <main className="dashboard">
+          <header className="dashboard-header">
+            <div>
+              <h1>Catalog Management</h1>
+              <p>Maintain the initial shares and crypto coin lists used by scanners and user settings.</p>
+            </div>
+          </header>
+          <CatalogManagementPage token={session.token} />
+        </main>
       ) : (
         <DashboardPage
           token={session.token}
@@ -134,7 +145,8 @@ function AppShell({
     { view: "dashboard", label: "Shares" },
     { view: "crypto", label: "Crypto" },
     { view: "settings", label: "Settings" },
-    { view: "users", label: session.user.role === "ADMIN" ? "Users" : "Account" }
+    { view: "users", label: session.user.role === "ADMIN" ? "Users" : "Account" },
+    ...(session.user.role === "ADMIN" ? [{ view: "catalog" as AppView, label: "Catalog" }] : [])
   ];
 
   return (

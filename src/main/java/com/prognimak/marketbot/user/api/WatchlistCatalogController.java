@@ -1,8 +1,8 @@
 package com.prognimak.marketbot.user.api;
 
-import com.prognimak.marketbot.service.CryptoWatchlistService;
+import com.prognimak.marketbot.service.CryptoCoinCatalogService;
 import com.prognimak.marketbot.service.SymbolValidationService;
-import com.prognimak.marketbot.service.WatchlistService;
+import com.prognimak.marketbot.service.StockCatalogService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -16,13 +16,13 @@ import java.util.List;
 @RequestMapping("/api/watchlists")
 @RequiredArgsConstructor
 public class WatchlistCatalogController {
-    private final WatchlistService watchlistService;
-    private final CryptoWatchlistService cryptoWatchlistService;
+    private final StockCatalogService stockCatalogService;
+    private final CryptoCoinCatalogService cryptoCoinCatalogService;
     private final SymbolValidationService symbolValidationService;
 
     @GetMapping("/stocks")
     public List<WatchlistCatalogItem> stocks() {
-        return watchlistService.watchlist().values().stream()
+        return stockCatalogService.enabledWatchlist().values().stream()
                 .map(item -> new WatchlistCatalogItem(item.symbol(), item.name()))
                 .sorted(Comparator.comparing(WatchlistCatalogItem::symbol, String.CASE_INSENSITIVE_ORDER))
                 .toList();
@@ -30,7 +30,7 @@ public class WatchlistCatalogController {
 
     @GetMapping("/crypto")
     public List<WatchlistCatalogItem> crypto() {
-        return cryptoWatchlistService.watchlist().values().stream()
+        return cryptoCoinCatalogService.enabledWatchlist().values().stream()
                 .map(item -> new WatchlistCatalogItem(item.symbol(), item.name()))
                 .sorted(Comparator.comparing(WatchlistCatalogItem::symbol, String.CASE_INSENSITIVE_ORDER))
                 .toList();

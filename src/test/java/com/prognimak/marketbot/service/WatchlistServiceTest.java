@@ -16,6 +16,8 @@ import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class WatchlistServiceTest {
 
@@ -47,7 +49,8 @@ class WatchlistServiceTest {
 
         WatchlistService service = new WatchlistService(
                 properties(watchlistFile.toString(), Map.of()),
-                new DefaultResourceLoader()
+                new DefaultResourceLoader(),
+                emptyStockCatalogService()
         );
 
         Map<String, WatchlistItem> watchlist = service.watchlist();
@@ -76,7 +79,8 @@ class WatchlistServiceTest {
 
         WatchlistService service = new WatchlistService(
                 properties(watchlistFile.toString(), Map.of()),
-                new DefaultResourceLoader()
+                new DefaultResourceLoader(),
+                emptyStockCatalogService()
         );
 
         WatchlistItem apple = service.watchlist().get("AAPL");
@@ -98,5 +102,11 @@ class WatchlistServiceTest {
                 new AppProperties.AlertConfig(-0.4, 0.4, 0.8, 5),
                 new AppProperties.CryptoConfig(true, 60_000, null, Map.of("BTC", "Bitcoin"), 1_000_000, 3, "5m", 3, 1_000)
         );
+    }
+
+    private static StockCatalogService emptyStockCatalogService() {
+        StockCatalogService service = mock(StockCatalogService.class);
+        when(service.enabledWatchlist()).thenReturn(Map.of());
+        return service;
     }
 }
