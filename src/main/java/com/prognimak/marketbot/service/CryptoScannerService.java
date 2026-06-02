@@ -16,6 +16,7 @@ import com.prognimak.marketbot.model.CryptoWatchlistItem;
 import com.prognimak.marketbot.notification.AsyncNotificationService;
 import com.prognimak.marketbot.repository.CryptoQuoteRepository;
 import com.prognimak.marketbot.repository.CryptoUserSymbolAlertStateRepository;
+import com.prognimak.marketbot.user.model.UserAlertSettings;
 import com.prognimak.marketbot.user.service.UserPropertyService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -34,6 +35,9 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import static com.prognimak.marketbot.util.Utils.roundDouble;
+import static com.prognimak.marketbot.util.Utils.shouldSendForUser;
 
 @Slf4j
 @Service
@@ -64,7 +68,7 @@ public class CryptoScannerService {
         Instant scanStartedAt = Instant.now();
         Map<String, CryptoWatchlistItem> watchlist = cryptoWatchlistService.watchlist();
         if (watchlist.isEmpty()) {
-            log.warn("No crypto coins configured for market scan.");
+            log.warn("No crypto coins configured for market ƒscan.");
             cryptoDashboardService.publishSnapshot(scanStartedAt);
             return;
         }
@@ -197,10 +201,10 @@ public class CryptoScannerService {
                     item.symbol(),
                     name,
                     properties.crypto().scanWindow(),
-                    open,
-                    close,
-                    ((close - open) / open) * 100,
-                    quoteVolume
+                    roundDouble(open, 2),
+                    roundDouble(close, 2),
+                    roundDouble(((close - open) / open) * 100, 2),
+                    roundDouble(quoteVolume, 2)
             ));
         } catch (Exception e) {
             log.warn("Skipping crypto {} because quote load failed: {}", pair.symbol(), e.getMessage());
@@ -226,9 +230,43 @@ public class CryptoScannerService {
     }
 
     private void recordMovement(CryptoMovement movement) {
-        boolean alert = Math.abs(movement.priceChangePercent()) >= properties.crypto().priceChangePercent();
-        String text = alert ? buildMessage(movement) : null;
-        CryptoQuoteEntity quoteEntity = persistQuote(movement, alert);
+        CryptoQuoteEntity quoteEntity = persistQuote(movement, false);
+        String text = buildMessage(movement, quoteEntity.getDelta());
+        boolean haveSendFlag = false;
+
+        List<AppUserPropertyEntity> usersWatchingCoin = userPropertyService.findUsersWatchingCryptoCoin(movement.baseAsset());
+        for (AppUserPropertyEntity userWatchConfig : usersWatchingCoin) {
+            Long userId = userWatchConfig.getUser().getId();
+            UserAlertSettings alertSettings = userPropertyService.loadAlertSettings(userId);
+            double delta = quoteEntity.getDelta();
+            double rollingDelta = roundDouble(movement.priceChangePercent(), 2);
+
+            if (!shouldSendForUser(alertSettings, delta, rollingDelta)) {
+                log.info("Crypto alert skipped for user {} and symbol {}: delta {}% / threshold {}%, rolling {}% / threshold {}%",
+                        userId,
+                        movement.baseAsset(),
+                        formatPercent(delta),
+                        formatPercent(alertSettings.deltaThreshold()),
+                        formatPercent(rollingDelta),
+                        formatPercent(alertSettings.rollingThreshold()));
+                continue;
+            }
+            if (hasAlertAlreadyBeenSent(userId, movement.baseAsset(), quoteEntity)) {
+                log.info("Crypto alert skipped for user {} and symbol {}: quote {} was already sent.",
+                        userId, movement.baseAsset(), quoteEntity.getId());
+                continue;
+            }
+            if (notificationService.sendCryptoAlert(userId, movement.baseAsset(), quoteEntity.getId(), text)) {
+                haveSendFlag = true;
+            }
+        }
+
+        if (haveSendFlag) {
+            quoteEntity.setAlert(true);
+            quoteEntity.setSend(true);
+            cryptoQuoteRepository.save(quoteEntity);
+        }
+
         cryptoDashboardService.recordResult(new CryptoScanResult(
                 movement.symbol(),
                 movement.baseAsset(),
@@ -239,25 +277,10 @@ public class CryptoScannerService {
                 movement.priceChangePercent(),
                 movement.quoteVolume(),
                 direction(movement.priceChangePercent()),
-                alert,
+                haveSendFlag,
                 Instant.now(),
-                text
+                haveSendFlag ? text : null
         ));
-
-        if (!alert) {
-            return;
-        }
-
-        List<AppUserPropertyEntity> usersWatchingCoin = userPropertyService.findUsersWatchingCryptoCoin(movement.baseAsset());
-        for (AppUserPropertyEntity userWatchConfig : usersWatchingCoin) {
-            Long userId = userWatchConfig.getUser().getId();
-            if (hasAlertAlreadyBeenSent(userId, movement.baseAsset(), quoteEntity)) {
-                log.info("Crypto alert skipped for user {} and symbol {}: quote {} was already sent.",
-                        userId, movement.baseAsset(), quoteEntity.getId());
-                continue;
-            }
-            notificationService.sendCryptoAlert(userId, movement.baseAsset(), quoteEntity.getId(), text);
-        }
     }
 
     private boolean hasAlertAlreadyBeenSent(Long userId, String symbol, CryptoQuoteEntity quoteEntity) {
@@ -282,7 +305,7 @@ public class CryptoScannerService {
         entity.setHighPrice(Math.max(movement.openPrice(), movement.closePrice()));
         entity.setLowPrice(Math.min(movement.openPrice(), movement.closePrice()));
         entity.setPriceChangePercent(movement.priceChangePercent());
-        entity.setDelta(previous == null ? 0 : movement.priceChangePercent() - previous.getPriceChangePercent());
+        entity.setDelta(previous == null ? 0 : roundDouble(movement.priceChangePercent() - previous.getPriceChangePercent(), 2));
         entity.setQuoteVolume(movement.quoteVolume());
         entity.setAlert(alert);
         return cryptoQuoteRepository.save(entity);
@@ -298,26 +321,47 @@ public class CryptoScannerService {
         return MarketDirection.NEUTRAL;
     }
 
-    private String buildMessage(CryptoMovement movement) {
-        String direction = movement.priceChangePercent() >= 0 ? "UP" : "DOWN";
+    private String formatPercent(double value) {
+        return String.format(Locale.ROOT, "%.2f", value);
+    }
+
+    private String buildMessage(CryptoMovement movement, double delta) {
+        boolean up = movement.priceChangePercent() >= 0;
+        String direction = up ? "UP" : "DOWN";
+        String icon = up ? "✅" : "❌";
+        String coinMark = coinMark(movement.baseAsset());
         return """
-                CRYPTO %s %s
+                %s %s CRYPTO %s %s
                 %s (%s)
                 Window: %s
                 Move: %.2f%%
-                Price: %.8f -> %.8f
+                Move since last check: %.2f%%
+                Price: %.2f -> %.2f
                 24h quote volume: %.2f USDT
                 """.formatted(
+                icon,
+                coinMark,
                 movement.symbol(),
                 direction,
                 movement.name(),
                 movement.baseAsset(),
                 movement.window(),
                 movement.priceChangePercent(),
+                delta,
                 movement.openPrice(),
                 movement.closePrice(),
                 movement.quoteVolume()
         );
+    }
+
+    private String coinMark(String baseAsset) {
+        if ("BTC".equalsIgnoreCase(baseAsset)) {
+            return "₿";
+        }
+        if (baseAsset == null || baseAsset.isBlank()) {
+            return "COIN";
+        }
+        return baseAsset.toUpperCase(Locale.ROOT);
     }
 
     private int candleLimit() {
