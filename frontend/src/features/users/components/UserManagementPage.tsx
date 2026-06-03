@@ -22,8 +22,10 @@ type FormState = {
   metadataText: string;
   watchlistRows: WatchlistRow[];
   cryptoRows: WatchlistRow[];
-  rollingThreshold: string;
-  deltaThreshold: string;
+  sharesRollingThreshold: string;
+  sharesDeltaThreshold: string;
+  cryptoRollingThreshold: string;
+  cryptoDeltaThreshold: string;
   telegramEnabled: boolean;
   telegramBotToken: string;
   telegramChatId: string;
@@ -47,8 +49,10 @@ const emptyForm: FormState = {
   cryptoRows: [
     { propertyName: "BTC", propertyValue: "Bitcoin", enabled: true }
   ],
-  rollingThreshold: "0.8",
-  deltaThreshold: "0.0001",
+  sharesRollingThreshold: "0.8",
+  sharesDeltaThreshold: "0.0001",
+  cryptoRollingThreshold: "0.8",
+  cryptoDeltaThreshold: "0.0001",
   telegramEnabled: true,
   telegramBotToken: "",
   telegramChatId: "",
@@ -90,8 +94,10 @@ export function UserManagementPage({ token, currentUser, onCurrentUserUpdated }:
       metadataText: metadataToText(user.metadata),
       watchlistRows: watchlistToRows(user.properties),
       cryptoRows: watchlistToRows(user.properties, "CRYPTO_COIN"),
-      rollingThreshold: propertyValue(user.properties, "ALERT_SETTING", "alert-rolling-threshold") ?? "0.8",
-      deltaThreshold: propertyValue(user.properties, "ALERT_SETTING", "alert-delta-threshold") ?? "0.0001",
+      sharesRollingThreshold: alertValue(user.properties, "shares-alert-rolling-threshold", "alert-rolling-threshold", "0.8"),
+      sharesDeltaThreshold: alertValue(user.properties, "shares-alert-delta-threshold", "alert-delta-threshold", "0.0001"),
+      cryptoRollingThreshold: alertValue(user.properties, "crypto-alert-rolling-threshold", "alert-rolling-threshold", "0.8"),
+      cryptoDeltaThreshold: alertValue(user.properties, "crypto-alert-delta-threshold", "alert-delta-threshold", "0.0001"),
       telegramEnabled: propertyValue(user.properties, "BOT", "telegram-enabled") !== "false",
       telegramBotToken: propertyValue(user.properties, "BOT", "telegram-bot-token") ?? "",
       telegramChatId: propertyValue(user.properties, "BOT", "telegram-chat-id") ?? "",
@@ -253,14 +259,25 @@ export function UserManagementPage({ token, currentUser, onCurrentUserUpdated }:
           }))} addLabel="Add Manually" token={token} catalogType="crypto" pickerLabel="Coin" />
         </fieldset>
         <fieldset>
-          <legend>Alert Settings</legend>
+          <legend>Shares Alert Settings</legend>
           <label>
             Rolling threshold
-            <input value={form.rollingThreshold} onChange={(event) => setForm({ ...form, rollingThreshold: event.target.value })} inputMode="decimal" />
+            <input value={form.sharesRollingThreshold} onChange={(event) => setForm({ ...form, sharesRollingThreshold: event.target.value })} inputMode="decimal" />
           </label>
           <label>
             Delta threshold
-            <input value={form.deltaThreshold} onChange={(event) => setForm({ ...form, deltaThreshold: event.target.value })} inputMode="decimal" />
+            <input value={form.sharesDeltaThreshold} onChange={(event) => setForm({ ...form, sharesDeltaThreshold: event.target.value })} inputMode="decimal" />
+          </label>
+        </fieldset>
+        <fieldset>
+          <legend>Crypto Alert Settings</legend>
+          <label>
+            Rolling threshold
+            <input value={form.cryptoRollingThreshold} onChange={(event) => setForm({ ...form, cryptoRollingThreshold: event.target.value })} inputMode="decimal" />
+          </label>
+          <label>
+            Delta threshold
+            <input value={form.cryptoDeltaThreshold} onChange={(event) => setForm({ ...form, cryptoDeltaThreshold: event.target.value })} inputMode="decimal" />
           </label>
         </fieldset>
         <fieldset>
@@ -341,6 +358,12 @@ function propertyValue(properties: AppUser["properties"], type: string, name: st
   return properties.find((property) => property.propertyType === type && property.propertyName === name)?.propertyValue ?? null;
 }
 
+function alertValue(properties: AppUser["properties"], name: string, fallbackName: string, defaultValue: string): string {
+  return propertyValue(properties, "ALERT_SETTING", name)
+    ?? propertyValue(properties, "ALERT_SETTING", fallbackName)
+    ?? defaultValue;
+}
+
 function botProperties(form: FormState): UserPayload["properties"] {
   const properties: UserProperty[] = [
     { propertyType: "BOT", propertyName: "telegram-enabled", propertyValue: String(form.telegramEnabled), enabled: true, description: "Telegram messenger enabled", propertyValueType: "TEXT" },
@@ -355,8 +378,10 @@ function botProperties(form: FormState): UserPayload["properties"] {
 
 function alertProperties(form: FormState): UserPayload["properties"] {
   const properties: UserProperty[] = [
-    { propertyType: "ALERT_SETTING", propertyName: "alert-rolling-threshold", propertyValue: form.rollingThreshold.trim(), enabled: true, description: "Rolling movement threshold", propertyValueType: "TEXT" },
-    { propertyType: "ALERT_SETTING", propertyName: "alert-delta-threshold", propertyValue: form.deltaThreshold.trim(), enabled: true, description: "Delta movement threshold", propertyValueType: "TEXT" }
+    { propertyType: "ALERT_SETTING", propertyName: "shares-alert-rolling-threshold", propertyValue: form.sharesRollingThreshold.trim(), enabled: true, description: "Shares rolling movement threshold", propertyValueType: "TEXT" },
+    { propertyType: "ALERT_SETTING", propertyName: "shares-alert-delta-threshold", propertyValue: form.sharesDeltaThreshold.trim(), enabled: true, description: "Shares delta movement threshold", propertyValueType: "TEXT" },
+    { propertyType: "ALERT_SETTING", propertyName: "crypto-alert-rolling-threshold", propertyValue: form.cryptoRollingThreshold.trim(), enabled: true, description: "Crypto rolling movement threshold", propertyValueType: "TEXT" },
+    { propertyType: "ALERT_SETTING", propertyName: "crypto-alert-delta-threshold", propertyValue: form.cryptoDeltaThreshold.trim(), enabled: true, description: "Crypto delta movement threshold", propertyValueType: "TEXT" }
   ];
 
   return properties.filter((property) => property.propertyValue);

@@ -20,8 +20,10 @@ export function SignUpPage({ onLogin, onShowLogin }: Props) {
   const [telegramEnabled, setTelegramEnabled] = useState(true);
   const [whatsAppEnabled, setWhatsAppEnabled] = useState(false);
   const [whatsAppChatId, setWhatsAppChatId] = useState("");
-  const [rollingThreshold, setRollingThreshold] = useState("0.8");
-  const [deltaThreshold, setDeltaThreshold] = useState("0.0001");
+  const [sharesRollingThreshold, setSharesRollingThreshold] = useState("0.8");
+  const [sharesDeltaThreshold, setSharesDeltaThreshold] = useState("0.0001");
+  const [cryptoRollingThreshold, setCryptoRollingThreshold] = useState("0.8");
+  const [cryptoDeltaThreshold, setCryptoDeltaThreshold] = useState("0.0001");
   const [watchlistRows, setWatchlistRows] = useState<WatchlistRow[]>([
     { propertyName: "AAPL", propertyValue: "Apple", enabled: true },
     { propertyName: "NVDA", propertyValue: "NVIDIA", enabled: true }
@@ -47,8 +49,10 @@ export function SignUpPage({ onLogin, onShowLogin }: Props) {
         telegramEnabled,
         whatsAppEnabled,
         whatsAppChatId,
-        rollingThreshold,
-        deltaThreshold,
+        sharesRollingThreshold,
+        sharesDeltaThreshold,
+        cryptoRollingThreshold,
+        cryptoDeltaThreshold,
         watchlistRows,
         cryptoRows
       }));
@@ -114,14 +118,26 @@ export function SignUpPage({ onLogin, onShowLogin }: Props) {
         </fieldset>
 
         <fieldset>
-          <legend>Alert Settings</legend>
+          <legend>Shares Alert Settings</legend>
           <label>
             Rolling threshold
-            <input value={rollingThreshold} onChange={(event) => setRollingThreshold(event.target.value)} inputMode="decimal" />
+            <input value={sharesRollingThreshold} onChange={(event) => setSharesRollingThreshold(event.target.value)} inputMode="decimal" />
           </label>
           <label>
             Delta threshold
-            <input value={deltaThreshold} onChange={(event) => setDeltaThreshold(event.target.value)} inputMode="decimal" />
+            <input value={sharesDeltaThreshold} onChange={(event) => setSharesDeltaThreshold(event.target.value)} inputMode="decimal" />
+          </label>
+        </fieldset>
+
+        <fieldset>
+          <legend>Crypto Alert Settings</legend>
+          <label>
+            Rolling threshold
+            <input value={cryptoRollingThreshold} onChange={(event) => setCryptoRollingThreshold(event.target.value)} inputMode="decimal" />
+          </label>
+          <label>
+            Delta threshold
+            <input value={cryptoDeltaThreshold} onChange={(event) => setCryptoDeltaThreshold(event.target.value)} inputMode="decimal" />
           </label>
         </fieldset>
 
@@ -160,8 +176,10 @@ type FormValues = {
   telegramEnabled: boolean;
   whatsAppEnabled: boolean;
   whatsAppChatId: string;
-  rollingThreshold: string;
-  deltaThreshold: string;
+  sharesRollingThreshold: string;
+  sharesDeltaThreshold: string;
+  cryptoRollingThreshold: string;
+  cryptoDeltaThreshold: string;
   watchlistRows: WatchlistRow[];
   cryptoRows: WatchlistRow[];
 };
@@ -175,7 +193,7 @@ function toPayload(values: FormValues): SignUpPayload {
     metadata: {},
     properties: [
       ...botProperties(values),
-      ...alertProperties(values.rollingThreshold, values.deltaThreshold),
+      ...alertProperties(values),
       ...watchlistProperties(values.watchlistRows),
       ...watchlistProperties(values.cryptoRows, { propertyType: "CRYPTO_COIN", description: "Crypto coin" })
     ]
@@ -229,22 +247,38 @@ function botProperties(values: FormValues): UserProperty[] {
   return properties.filter((property) => property.propertyValue);
 }
 
-function alertProperties(rollingThreshold: string, deltaThreshold: string): UserProperty[] {
+function alertProperties(values: FormValues): UserProperty[] {
   const properties: UserProperty[] = [
     {
       propertyType: "ALERT_SETTING",
-      propertyName: "alert-rolling-threshold",
-      propertyValue: rollingThreshold.trim(),
+      propertyName: "shares-alert-rolling-threshold",
+      propertyValue: values.sharesRollingThreshold.trim(),
       enabled: true,
-      description: "Rolling movement threshold",
+      description: "Shares rolling movement threshold",
       propertyValueType: "TEXT"
     },
     {
       propertyType: "ALERT_SETTING",
-      propertyName: "alert-delta-threshold",
-      propertyValue: deltaThreshold.trim(),
+      propertyName: "shares-alert-delta-threshold",
+      propertyValue: values.sharesDeltaThreshold.trim(),
       enabled: true,
-      description: "Delta movement threshold",
+      description: "Shares delta movement threshold",
+      propertyValueType: "TEXT"
+    },
+    {
+      propertyType: "ALERT_SETTING",
+      propertyName: "crypto-alert-rolling-threshold",
+      propertyValue: values.cryptoRollingThreshold.trim(),
+      enabled: true,
+      description: "Crypto rolling movement threshold",
+      propertyValueType: "TEXT"
+    },
+    {
+      propertyType: "ALERT_SETTING",
+      propertyName: "crypto-alert-delta-threshold",
+      propertyValue: values.cryptoDeltaThreshold.trim(),
+      enabled: true,
+      description: "Crypto delta movement threshold",
       propertyValueType: "TEXT"
     }
   ];

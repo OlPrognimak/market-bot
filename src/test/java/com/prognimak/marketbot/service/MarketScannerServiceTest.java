@@ -179,7 +179,7 @@ class MarketScannerServiceTest {
                 quote("AAPL", 0.0)
         )));
         when(userPropertyService.findUsersWatchingSymbol("AAPL")).thenReturn(List.of(watchlistProperty(1L, "AAPL")));
-        when(userPropertyService.loadAlertSettings(1L)).thenReturn(new UserAlertSettings(0.8, 0.0001));
+        when(userPropertyService.loadSharesAlertSettings(1L)).thenReturn(new UserAlertSettings(0.8, 0.0001));
         when(notificationService.sendShareAlert(eq(1L), eq("AAPL"), any(), anyString())).thenReturn(true);
 
         service.scanMarket();

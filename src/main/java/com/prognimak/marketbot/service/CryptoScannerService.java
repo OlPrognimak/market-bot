@@ -237,7 +237,7 @@ public class CryptoScannerService {
         List<AppUserPropertyEntity> usersWatchingCoin = userPropertyService.findUsersWatchingCryptoCoin(movement.baseAsset());
         for (AppUserPropertyEntity userWatchConfig : usersWatchingCoin) {
             Long userId = userWatchConfig.getUser().getId();
-            UserAlertSettings alertSettings = userPropertyService.loadAlertSettings(userId);
+            UserAlertSettings alertSettings = userPropertyService.loadCryptoAlertSettings(userId);
             double delta = quoteEntity.getDelta();
             double rollingDelta = roundDouble(movement.priceChangePercent(), 2);
 

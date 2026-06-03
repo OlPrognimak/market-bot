@@ -22,6 +22,10 @@ import java.util.stream.Collectors;
 public class UserPropertyService {
     public static final String ALERT_ROLLING_THRESHOLD = "alert-rolling-threshold";
     public static final String ALERT_DELTA_THRESHOLD = "alert-delta-threshold";
+    public static final String SHARES_ALERT_ROLLING_THRESHOLD = "shares-alert-rolling-threshold";
+    public static final String SHARES_ALERT_DELTA_THRESHOLD = "shares-alert-delta-threshold";
+    public static final String CRYPTO_ALERT_ROLLING_THRESHOLD = "crypto-alert-rolling-threshold";
+    public static final String CRYPTO_ALERT_DELTA_THRESHOLD = "crypto-alert-delta-threshold";
     public static final String TELEGRAM_ENABLED = "telegram-enabled";
     public static final String TELEGRAM_CHAT_ID = "telegram-chat-id";
     public static final String TELEGRAM_BOT_TOKEN = "telegram-bot-token";
@@ -93,11 +97,25 @@ public class UserPropertyService {
     }
 
     @Transactional(readOnly = true)
-    public UserAlertSettings loadAlertSettings(Long userId) {
+    public UserAlertSettings loadSharesAlertSettings(Long userId) {
         return new UserAlertSettings(
-                doubleProperty(userId, UserPropertyType.ALERT_SETTING, ALERT_ROLLING_THRESHOLD)
+                doubleProperty(userId, UserPropertyType.ALERT_SETTING, SHARES_ALERT_ROLLING_THRESHOLD)
+                        .or(() -> doubleProperty(userId, UserPropertyType.ALERT_SETTING, ALERT_ROLLING_THRESHOLD))
                         .orElse(appProperties.alert().maximalRollingPrice()),
-                doubleProperty(userId, UserPropertyType.ALERT_SETTING, ALERT_DELTA_THRESHOLD)
+                doubleProperty(userId, UserPropertyType.ALERT_SETTING, SHARES_ALERT_DELTA_THRESHOLD)
+                        .or(() -> doubleProperty(userId, UserPropertyType.ALERT_SETTING, ALERT_DELTA_THRESHOLD))
+                        .orElse(Math.abs(appProperties.alert().riseAlertPercent()))
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public UserAlertSettings loadCryptoAlertSettings(Long userId) {
+        return new UserAlertSettings(
+                doubleProperty(userId, UserPropertyType.ALERT_SETTING, CRYPTO_ALERT_ROLLING_THRESHOLD)
+                        .or(() -> doubleProperty(userId, UserPropertyType.ALERT_SETTING, ALERT_ROLLING_THRESHOLD))
+                        .orElse(appProperties.alert().maximalRollingPrice()),
+                doubleProperty(userId, UserPropertyType.ALERT_SETTING, CRYPTO_ALERT_DELTA_THRESHOLD)
+                        .or(() -> doubleProperty(userId, UserPropertyType.ALERT_SETTING, ALERT_DELTA_THRESHOLD))
                         .orElse(Math.abs(appProperties.alert().riseAlertPercent()))
         );
     }
