@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { formatDateTime } from "@/lib/format";
+import { ALL_FILTER_VALUE } from "@/lib/filterConstants";
 import { ConnectionStatus } from "./ConnectionStatus";
 import { MarketChartDialog } from "./MarketChartDialog";
 import { MarketResultsTable } from "./MarketResultsTable";
@@ -24,10 +25,10 @@ export function DashboardPage({ token, currentUser }: Props) {
   const { snapshot, connectionState, error, fetchSnapshot, triggerScan } = useMarketDashboardSocket(token);
   const [sortKey, setSortKey] = useState<SortKey>("backend");
   const [query, setQuery] = useState("");
-  const [regionFilter, setRegionFilter] = useState("ALL");
-  const [priorityFilter, setPriorityFilter] = useState("ALL");
-  const [sectorFilter, setSectorFilter] = useState("ALL");
-  const [exchangeFilter, setExchangeFilter] = useState("ALL");
+  const [regionFilter, setRegionFilter] = useState<string>(ALL_FILTER_VALUE);
+  const [priorityFilter, setPriorityFilter] = useState<string>(ALL_FILTER_VALUE);
+  const [sectorFilter, setSectorFilter] = useState<string>(ALL_FILTER_VALUE);
+  const [exchangeFilter, setExchangeFilter] = useState<string>(ALL_FILTER_VALUE);
   const [actionError, setActionError] = useState<string | null>(null);
   const [manualScanBusy, setManualScanBusy] = useState(false);
   const [chartSymbol, setChartSymbol] = useState<string | null>(null);
@@ -42,16 +43,16 @@ export function DashboardPage({ token, currentUser }: Props) {
     const rawResults = snapshot?.results ?? [];
     const filtered = rawResults.filter((result) => {
       const normalizedQuery = normalizedFilterValue(query);
-      if (regionFilter !== "ALL" && normalizedFilterValue(result.region) !== normalizedFilterValue(regionFilter)) {
+      if (regionFilter !== ALL_FILTER_VALUE && normalizedFilterValue(result.region) !== normalizedFilterValue(regionFilter)) {
         return false;
       }
-      if (priorityFilter !== "ALL" && normalizedFilterValue(normalizedPriority(result.priority)) !== normalizedFilterValue(priorityFilter)) {
+      if (priorityFilter !== ALL_FILTER_VALUE && normalizedFilterValue(normalizedPriority(result.priority)) !== normalizedFilterValue(priorityFilter)) {
         return false;
       }
-      if (sectorFilter !== "ALL" && normalizedFilterValue(result.sector) !== normalizedFilterValue(sectorFilter)) {
+      if (sectorFilter !== ALL_FILTER_VALUE && normalizedFilterValue(result.sector) !== normalizedFilterValue(sectorFilter)) {
         return false;
       }
-      if (exchangeFilter !== "ALL" && normalizedFilterValue(result.exchange) !== normalizedFilterValue(exchangeFilter)) {
+      if (exchangeFilter !== ALL_FILTER_VALUE && normalizedFilterValue(result.exchange) !== normalizedFilterValue(exchangeFilter)) {
         return false;
       }
       if (!normalizedQuery) {
@@ -84,17 +85,17 @@ export function DashboardPage({ token, currentUser }: Props) {
   }, [snapshot?.results]);
 
   useEffect(() => {
-    if (regionFilter !== "ALL" && !hasFilterOption(filterOptions.regions, regionFilter)) {
-      setRegionFilter("ALL");
+    if (regionFilter !== ALL_FILTER_VALUE && !hasFilterOption(filterOptions.regions, regionFilter)) {
+      setRegionFilter(ALL_FILTER_VALUE);
     }
-    if (priorityFilter !== "ALL" && !hasFilterOption(filterOptions.priorities, priorityFilter)) {
-      setPriorityFilter("ALL");
+    if (priorityFilter !== ALL_FILTER_VALUE && !hasFilterOption(filterOptions.priorities, priorityFilter)) {
+      setPriorityFilter(ALL_FILTER_VALUE);
     }
-    if (sectorFilter !== "ALL" && !hasFilterOption(filterOptions.sectors, sectorFilter)) {
-      setSectorFilter("ALL");
+    if (sectorFilter !== ALL_FILTER_VALUE && !hasFilterOption(filterOptions.sectors, sectorFilter)) {
+      setSectorFilter(ALL_FILTER_VALUE);
     }
-    if (exchangeFilter !== "ALL" && !hasFilterOption(filterOptions.exchanges, exchangeFilter)) {
-      setExchangeFilter("ALL");
+    if (exchangeFilter !== ALL_FILTER_VALUE && !hasFilterOption(filterOptions.exchanges, exchangeFilter)) {
+      setExchangeFilter(ALL_FILTER_VALUE);
     }
   }, [exchangeFilter, filterOptions, priorityFilter, regionFilter, sectorFilter]);
 
@@ -136,7 +137,7 @@ export function DashboardPage({ token, currentUser }: Props) {
 
       <SummaryStrip snapshot={snapshot} />
 
-      <section className="toolbar" aria-label="Dashboard controls">
+      <section className="toolbar dashboard-toolbar" aria-label="Dashboard controls">
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
@@ -151,25 +152,25 @@ export function DashboardPage({ token, currentUser }: Props) {
           <option value="updatedAt">Updated time</option>
         </select>
         <select value={regionFilter} onChange={(event) => setRegionFilter(event.target.value)} aria-label="Filter country">
-          <option value="ALL">All countries</option>
+          <option value={ALL_FILTER_VALUE}>All countries</option>
           {filterOptions.regions.map((region) => (
             <option key={region} value={region}>{region}</option>
           ))}
         </select>
         <select value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value)} aria-label="Filter priority">
-          <option value="ALL">All priorities</option>
+          <option value={ALL_FILTER_VALUE}>All priorities</option>
           {filterOptions.priorities.map((priority) => (
             <option key={priority} value={priority}>{priority}</option>
           ))}
         </select>
         <select value={sectorFilter} onChange={(event) => setSectorFilter(event.target.value)} aria-label="Filter sector">
-          <option value="ALL">All sectors</option>
+          <option value={ALL_FILTER_VALUE}>All sectors</option>
           {filterOptions.sectors.map((sector) => (
             <option key={sector} value={sector}>{sector}</option>
           ))}
         </select>
         <select value={exchangeFilter} onChange={(event) => setExchangeFilter(event.target.value)} aria-label="Filter exchange">
-          <option value="ALL">All exchanges</option>
+          <option value={ALL_FILTER_VALUE}>All exchanges</option>
           {filterOptions.exchanges.map((exchange) => (
             <option key={exchange} value={exchange}>{exchange}</option>
           ))}

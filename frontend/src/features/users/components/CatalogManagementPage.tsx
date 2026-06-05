@@ -9,6 +9,7 @@ import {
   saveCryptoCatalogItem,
   saveStockCatalogItem
 } from "@/lib/auth";
+import { ALL_FILTER_VALUE } from "@/lib/filterConstants";
 import type { CatalogItemPayload, CryptoCatalogItem, StockCatalogItem } from "../types";
 
 type Props = {
@@ -16,7 +17,7 @@ type Props = {
 };
 
 type CatalogType = "stocks" | "crypto";
-type StatusFilter = "ALL" | "ENABLED" | "DISABLED";
+type StatusFilter = typeof ALL_FILTER_VALUE | "ENABLED" | "DISABLED";
 
 type FormState = CatalogItemPayload & { id?: number };
 type CatalogFilters = {
@@ -51,7 +52,7 @@ const emptyFilters: CatalogFilters = {
   currency: "",
   priority: "",
   pairSymbol: "",
-  status: "ALL"
+  status: ALL_FILTER_VALUE
 };
 
 const containsFilter = (value: string | null | undefined, filter: string) => {
@@ -223,7 +224,7 @@ export function CatalogManagementPage({ token }: Props) {
             <input value={filters.pairSymbol} onChange={(event) => updateFilter("pairSymbol", event.target.value)} placeholder="Pair" aria-label="Filter catalog pair" />
           )}
           <select value={filters.status} onChange={(event) => updateFilter("status", event.target.value as StatusFilter)} aria-label="Filter catalog status">
-            <option value="ALL">All statuses</option>
+            <option value={ALL_FILTER_VALUE}>All statuses</option>
             <option value="ENABLED">Enabled</option>
             <option value="DISABLED">Disabled</option>
           </select>

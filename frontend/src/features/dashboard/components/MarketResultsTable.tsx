@@ -12,8 +12,8 @@ export function MarketResultsTable({ results, onOpenChart }: Props) {
   }
 
   return (
-    <div className="table-frame">
-      <table>
+    <div className="table-frame market-results-frame">
+      <table className="market-results-table">
         <thead>
           <tr>
             <th>Symbol</th>

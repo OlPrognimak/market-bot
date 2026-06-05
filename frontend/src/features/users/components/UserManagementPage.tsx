@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { createUser, deleteUser, fetchUsers, updateCurrentUser, updateUser } from "@/lib/auth";
 import type { AppUser, UserPayload, UserProperty, UserRole } from "../types";
 import { WatchlistEditor, watchlistProperties, watchlistToRows, type WatchlistRow } from "./WatchlistEditor";
@@ -61,18 +61,18 @@ const emptyForm: FormState = {
 };
 
 export function UserManagementPage({ token, currentUser, onCurrentUserUpdated }: Props) {
+  const isAdmin = currentUser.role === "ADMIN";
   const [users, setUsers] = useState<AppUser[]>([]);
-  const [form, setForm] = useState<FormState>(emptyForm);
+  const [form, setForm] = useState<FormState>(() => isAdmin ? emptyForm : userToForm(currentUser));
+  const [dialogMode, setDialogMode] = useState<"create" | "edit" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const isAdmin = currentUser.role === "ADMIN";
-
-  const selectedUser = useMemo(() => users.find((user) => user.id === form.id) ?? null, [form.id, users]);
 
   const loadUsers = async () => {
     setError(null);
     if (!isAdmin) {
       setUsers([currentUser]);
+      setForm(userToForm(currentUser));
       return;
     }
     setUsers(await fetchUsers(token));
@@ -80,37 +80,25 @@ export function UserManagementPage({ token, currentUser, onCurrentUserUpdated }:
 
   useEffect(() => {
     loadUsers().catch((err) => setError(err instanceof Error ? err.message : "Could not load users"));
-  }, [token]);
+  }, [token, currentUser.id, isAdmin]);
 
-  const selectUser = (user: AppUser) => {
-    setForm({
-      id: user.id,
-      username: user.username,
-      password: "",
-      displayName: user.displayName,
-      email: user.email,
-      role: user.role,
-      enabled: user.enabled,
-      metadataText: metadataToText(user.metadata),
-      watchlistRows: watchlistToRows(user.properties),
-      cryptoRows: watchlistToRows(user.properties, "CRYPTO_COIN"),
-      sharesRollingThreshold: alertValue(user.properties, "shares-alert-rolling-threshold", "alert-rolling-threshold", "0.8"),
-      sharesDeltaThreshold: alertValue(user.properties, "shares-alert-delta-threshold", "alert-delta-threshold", "0.0001"),
-      cryptoRollingThreshold: alertValue(user.properties, "crypto-alert-rolling-threshold", "alert-rolling-threshold", "0.8"),
-      cryptoDeltaThreshold: alertValue(user.properties, "crypto-alert-delta-threshold", "alert-delta-threshold", "0.0001"),
-      telegramEnabled: propertyValue(user.properties, "BOT", "telegram-enabled") !== "false",
-      telegramBotToken: propertyValue(user.properties, "BOT", "telegram-bot-token") ?? "",
-      telegramChatId: propertyValue(user.properties, "BOT", "telegram-chat-id") ?? "",
-      whatsAppEnabled: propertyValue(user.properties, "BOT", "whatsapp-enabled") === "true",
-      whatsAppChatId: propertyValue(user.properties, "BOT", "whatsapp-chat-id") ?? ""
-    });
+  const openNewUserDialog = () => {
+    setForm(emptyForm);
+    setError(null);
+    setDialogMode("create");
   };
 
-  useEffect(() => {
-    if (!isAdmin && users.length === 1 && form.id !== users[0].id) {
-      selectUser(users[0]);
-    }
-  }, [form.id, isAdmin, users]);
+  const openEditUserDialog = (user: AppUser) => {
+    setForm(userToForm(user));
+    setError(null);
+    setDialogMode("edit");
+  };
+
+  const closeDialog = () => {
+    setDialogMode(null);
+    setForm(emptyForm);
+    setError(null);
+  };
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -121,15 +109,14 @@ export function UserManagementPage({ token, currentUser, onCurrentUserUpdated }:
       if (!isAdmin) {
         const updatedUser = await updateCurrentUser(token, payload);
         setUsers([updatedUser]);
-        selectUser(updatedUser);
+        setForm(userToForm(updatedUser));
         onCurrentUserUpdated?.(updatedUser);
       } else if (form.id) {
         await updateUser(token, form.id, payload);
+        closeDialog();
       } else {
         await createUser(token, payload);
-      }
-      if (isAdmin) {
-        setForm(emptyForm);
+        closeDialog();
       }
       await loadUsers();
     } catch (err) {
@@ -139,15 +126,11 @@ export function UserManagementPage({ token, currentUser, onCurrentUserUpdated }:
     }
   };
 
-  const removeSelected = async () => {
-    if (!form.id || !selectedUser) {
-      return;
-    }
+  const removeUser = async (user: AppUser) => {
     setBusy(true);
     setError(null);
     try {
-      await deleteUser(token, form.id);
-      setForm(emptyForm);
+      await deleteUser(token, user.id);
       await loadUsers();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not delete user");
@@ -156,16 +139,18 @@ export function UserManagementPage({ token, currentUser, onCurrentUserUpdated }:
     }
   };
 
+  if (!isAdmin) {
+    return renderUserForm("Edit User", false);
+  }
+
   return (
-    <section className="users-layout">
+    <section className="users-layout users-admin-layout">
       <div className="users-list">
         <div className="section-header">
-          <h2>{isAdmin ? "Users" : "Your Account"}</h2>
-          {isAdmin ? (
-            <button type="button" className="secondary-button" onClick={() => setForm(emptyForm)}>
-              New User
-            </button>
-          ) : null}
+          <h2>Users</h2>
+          <button type="button" className="secondary-button" onClick={openNewUserDialog}>
+            New User
+          </button>
         </div>
         <div className="table-frame">
           <table className="users-table">
@@ -175,24 +160,57 @@ export function UserManagementPage({ token, currentUser, onCurrentUserUpdated }:
                 <th>Name</th>
                 <th>Role</th>
                 <th>Status</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {users.map((user) => (
-                <tr key={user.id} className={form.id === user.id ? "selected-row" : ""} onClick={() => selectUser(user)}>
+                <tr key={user.id}>
                   <td>{user.username}</td>
                   <td>{user.displayName}</td>
                   <td>{user.role}</td>
                   <td>{user.enabled ? "Enabled" : "Disabled"}</td>
+                  <td className="users-actions-cell">
+                    <button type="button" className="secondary-button compact-action-button" onClick={() => openEditUserDialog(user)} disabled={busy}>
+                      Edit
+                    </button>
+                    <button type="button" className="danger-button compact-action-button" onClick={() => removeUser(user)} disabled={busy}>
+                      Delete
+                    </button>
+                  </td>
                 </tr>
               ))}
+              {users.length === 0 ? (
+                <tr>
+                  <td colSpan={5}>No users found.</td>
+                </tr>
+              ) : null}
             </tbody>
           </table>
         </div>
+        {error && !dialogMode ? <div className="error-banner users-page-error">{error}</div> : null}
       </div>
 
-      <form className="user-form" onSubmit={submit}>
-        <h2>{isAdmin ? (form.id ? "Update User" : "Create User") : "Edit User"}</h2>
+      {dialogMode ? (
+        <div className="modal-backdrop" role="presentation" onClick={closeDialog}>
+          <section className="user-dialog" role="dialog" aria-modal="true" aria-labelledby="user-dialog-title" onClick={(event) => event.stopPropagation()}>
+            <header className="user-dialog-header">
+              <h2 id="user-dialog-title">{dialogMode === "edit" ? "Update User" : "Create User"}</h2>
+              <button type="button" className="icon-button dialog-close-button" onClick={closeDialog} aria-label="Close dialog">
+                <CloseIcon />
+              </button>
+            </header>
+            {renderUserForm(dialogMode === "edit" ? "Update User" : "Create User", true)}
+          </section>
+        </div>
+      ) : null}
+    </section>
+  );
+
+  function renderUserForm(title: string, dialog: boolean) {
+    return (
+      <form className={`user-form ${dialog ? "dialog-user-form" : ""}`} onSubmit={submit}>
+        {!dialog ? <h2>{title}</h2> : null}
         <label>
           Username
           <input value={form.username} onChange={(event) => setForm({ ...form, username: event.target.value })} required />
@@ -215,27 +233,25 @@ export function UserManagementPage({ token, currentUser, onCurrentUserUpdated }:
             required={!form.id}
           />
         </label>
-        <div className="form-row">
-          {isAdmin ? (
-            <>
-              <label>
-                Role
-                <select value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value as UserRole })}>
-                  <option value="USER">User</option>
-                  <option value="ADMIN">Admin</option>
-                </select>
-              </label>
-              <label className="checkbox-label">
-                <input
-                  checked={form.enabled}
-                  onChange={(event) => setForm({ ...form, enabled: event.target.checked })}
-                  type="checkbox"
-                />
-                Enabled
-              </label>
-            </>
-          ) : null}
-        </div>
+        {isAdmin ? (
+          <div className="form-row">
+            <label>
+              Role
+              <select value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value as UserRole })}>
+                <option value="USER">User</option>
+                <option value="ADMIN">Admin</option>
+              </select>
+            </label>
+            <label className="checkbox-label">
+              <input
+                checked={form.enabled}
+                onChange={(event) => setForm({ ...form, enabled: event.target.checked })}
+                type="checkbox"
+              />
+              Enabled
+            </label>
+          </div>
+        ) : null}
         <label>
           Environment metadata
           <textarea
@@ -308,15 +324,39 @@ export function UserManagementPage({ token, currentUser, onCurrentUserUpdated }:
           <button type="submit" disabled={busy}>
             {busy ? "Saving" : form.id ? "Update" : "Create"}
           </button>
-          {isAdmin && form.id ? (
-            <button type="button" className="danger-button" onClick={removeSelected} disabled={busy}>
-              Delete
+          {dialog ? (
+            <button type="button" className="secondary-button" onClick={closeDialog} disabled={busy}>
+              Cancel
             </button>
           ) : null}
         </div>
       </form>
-    </section>
-  );
+    );
+  }
+}
+
+function userToForm(user: AppUser): FormState {
+  return {
+    id: user.id,
+    username: user.username,
+    password: "",
+    displayName: user.displayName,
+    email: user.email,
+    role: user.role,
+    enabled: user.enabled,
+    metadataText: metadataToText(user.metadata),
+    watchlistRows: watchlistToRows(user.properties),
+    cryptoRows: watchlistToRows(user.properties, "CRYPTO_COIN"),
+    sharesRollingThreshold: alertValue(user.properties, "shares-alert-rolling-threshold", "alert-rolling-threshold", "0.8"),
+    sharesDeltaThreshold: alertValue(user.properties, "shares-alert-delta-threshold", "alert-delta-threshold", "0.0001"),
+    cryptoRollingThreshold: alertValue(user.properties, "crypto-alert-rolling-threshold", "alert-rolling-threshold", "0.8"),
+    cryptoDeltaThreshold: alertValue(user.properties, "crypto-alert-delta-threshold", "alert-delta-threshold", "0.0001"),
+    telegramEnabled: propertyValue(user.properties, "BOT", "telegram-enabled") !== "false",
+    telegramBotToken: propertyValue(user.properties, "BOT", "telegram-bot-token") ?? "",
+    telegramChatId: propertyValue(user.properties, "BOT", "telegram-chat-id") ?? "",
+    whatsAppEnabled: propertyValue(user.properties, "BOT", "whatsapp-enabled") === "true",
+    whatsAppChatId: propertyValue(user.properties, "BOT", "whatsapp-chat-id") ?? ""
+  };
 }
 
 function toPayload(form: FormState): UserPayload {
@@ -385,4 +425,12 @@ function alertProperties(form: FormState): UserPayload["properties"] {
   ];
 
   return properties.filter((property) => property.propertyValue);
+}
+
+function CloseIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false">
+      <path d="M6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12 19 6.4 17.6 5 12 10.6 6.4 5Z" />
+    </svg>
+  );
 }

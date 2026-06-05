@@ -3,6 +3,7 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { fetchWatchlistCatalog, validateWatchlistSymbol } from "@/lib/auth";
+import { ALL_FILTER_VALUE } from "@/lib/filterConstants";
 import type { AppUser, UserProperty, WatchlistCatalogItem } from "../types";
 
 export type WatchlistRow = {
@@ -25,7 +26,7 @@ type Props = {
 type WatchlistTableFilters = {
   symbol: string;
   name: string;
-  status: "ALL" | "ENABLED" | "DISABLED";
+  status: typeof ALL_FILTER_VALUE | "ENABLED" | "DISABLED";
 };
 
 type PropertyRowsOptions = {
@@ -36,7 +37,7 @@ type PropertyRowsOptions = {
 const emptyTableFilters: WatchlistTableFilters = {
   symbol: "",
   name: "",
-  status: "ALL"
+  status: ALL_FILTER_VALUE
 };
 
 export function WatchlistEditor({
@@ -252,11 +253,11 @@ export function WatchlistEditor({
           onChange={(event) => setTableFilters((current) => ({ ...current, status: event.target.value as WatchlistTableFilters["status"] }))}
           aria-label={`Filter ${pickerLabel.toLowerCase()} enabled state`}
         >
-          <option value="ALL">All statuses</option>
+          <option value={ALL_FILTER_VALUE}>All statuses</option>
           <option value="ENABLED">Enabled</option>
           <option value="DISABLED">Disabled</option>
         </select>
-        {tableFilters.symbol || tableFilters.name || tableFilters.status !== "ALL" ? (
+        {tableFilters.symbol || tableFilters.name || tableFilters.status !== ALL_FILTER_VALUE ? (
           <button type="button" className="secondary-button compact-action-button" onClick={() => setTableFilters(emptyTableFilters)}>
             Clear
           </button>

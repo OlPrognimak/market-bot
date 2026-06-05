@@ -2,11 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { formatDateTime, formatPercent } from "@/lib/format";
+import { ALL_FILTER_VALUE } from "@/lib/filterConstants";
 import type { AppUser } from "@/features/users/types";
 import { CryptoChartDialog } from "./CryptoChartDialog";
 import { CryptoResultsTable } from "./CryptoResultsTable";
 import { useCryptoDashboard } from "../hooks/useCryptoDashboard";
-import type { CryptoScanResult, CryptoSortKey } from "../types/market-dashboard";
+import type { CryptoScanResult, CryptoSortKey, MarketDirection } from "../types/market-dashboard";
 import { sortCryptoResults } from "../utils/sortCryptoResults";
 
 type Props = {
@@ -17,12 +18,14 @@ type Props = {
   onOpenSettings: () => void;
 };
 
+type DirectionFilter = typeof ALL_FILTER_VALUE | MarketDirection;
+
 export function CryptoDashboardPage({ token, currentUser }: Props) {
   const { snapshot, fetchSnapshot, triggerScan } = useCryptoDashboard(token);
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<CryptoSortKey>("backend");
-  const [directionFilter, setDirectionFilter] = useState("ALL");
-  const [windowFilter, setWindowFilter] = useState("ALL");
+  const [directionFilter, setDirectionFilter] = useState<DirectionFilter>(ALL_FILTER_VALUE);
+  const [windowFilter, setWindowFilter] = useState<string>(ALL_FILTER_VALUE);
   const [actionError, setActionError] = useState<string | null>(null);
   const [manualScanBusy, setManualScanBusy] = useState(false);
   const [chartResult, setChartResult] = useState<CryptoScanResult | null>(null);
@@ -36,10 +39,10 @@ export function CryptoDashboardPage({ token, currentUser }: Props) {
   const results = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     const filtered = (snapshot?.results ?? []).filter((result) => {
-      if (directionFilter !== "ALL" && result.direction !== directionFilter) {
+      if (directionFilter !== ALL_FILTER_VALUE && result.direction !== directionFilter) {
         return false;
       }
-      if (windowFilter !== "ALL" && result.window !== windowFilter) {
+      if (windowFilter !== ALL_FILTER_VALUE && result.window !== windowFilter) {
         return false;
       }
       if (!normalizedQuery) {
@@ -118,14 +121,14 @@ export function CryptoDashboardPage({ token, currentUser }: Props) {
           <option value="symbol">Coin</option>
           <option value="updatedAt">Updated time</option>
         </select>
-        <select value={directionFilter} onChange={(event) => setDirectionFilter(event.target.value)} aria-label="Filter direction">
-          <option value="ALL">All directions</option>
+        <select value={directionFilter} onChange={(event) => setDirectionFilter(event.target.value as DirectionFilter)} aria-label="Filter direction">
+          <option value={ALL_FILTER_VALUE}>All directions</option>
           <option value="UP">Up</option>
           <option value="DOWN">Down</option>
           <option value="NEUTRAL">Neutral</option>
         </select>
         <select value={windowFilter} onChange={(event) => setWindowFilter(event.target.value)} aria-label="Filter crypto window">
-          <option value="ALL">All windows</option>
+          <option value={ALL_FILTER_VALUE}>All windows</option>
           {windows.map((window) => (
             <option key={window} value={window}>{window}</option>
           ))}
