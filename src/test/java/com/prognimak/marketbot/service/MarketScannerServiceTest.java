@@ -8,6 +8,7 @@ import com.prognimak.marketbot.dashboard.service.MarketDashboardService;
 import com.prognimak.marketbot.entity.AppUserEntity;
 import com.prognimak.marketbot.entity.AppUserPropertyEntity;
 import com.prognimak.marketbot.entity.QuoteEntity;
+import com.prognimak.marketbot.entity.UserSymbolAlertStateEntity;
 import com.prognimak.marketbot.mapper.QuoteMapper;
 import com.prognimak.marketbot.model.Quote;
 import com.prognimak.marketbot.model.WatchlistItem;
@@ -29,6 +30,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.time.Instant;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -160,6 +163,25 @@ class MarketScannerServiceTest {
     }
 
     @Test
+    void scanMarketStartsNewRollingSeriesWhenPreviousCloseBaselineChanges() {
+        Quote quote = quote("AAPL", -3.49);
+        QuoteEntity entity = entity("AAPL", -3.49);
+        QuoteEntity previousDayEntity = entity("AAPL", -12.05);
+        previousDayEntity.setPreviousClose(80.0);
+
+        when(yahooFinanceClient.getQuote("AAPL")).thenReturn(quote);
+        when(quoteRepository.findBySymbolOrderByCreatedDesc(eq("AAPL"), any(Pageable.class)))
+                .thenReturn(List.of(previousDayEntity));
+        when(quoteMapper.toEntity(quote)).thenReturn(entity);
+
+        service.scanMarket();
+
+        assertEquals(0, entity.getDelta(), 0.0001);
+        verify(quoteRepository).save(entity);
+        verifyNoInteractions(finnhubClient, telegramClient, notificationService);
+    }
+
+    @Test
     void scanMarketSendsOncePerUserAndSymbolWhenRollingMovementExceedsThreshold() {
         Quote firstQuote = quote("AAPL", 1.0);
         Quote secondQuote = quote("AAPL", 1.1);
@@ -200,9 +222,40 @@ class MarketScannerServiceTest {
                 () -> assertNotNull(messageCaptor.getValue()),
                 () -> assertTrue(normalizedMessage.contains("Apple (AAPL) UP")),
                 () -> assertTrue(normalizedMessage.contains("Day change: 1.10%")),
-                () -> assertTrue(normalizedMessage.contains("Move since last check: 0.10%")),
-                () -> assertTrue(normalizedMessage.contains("Rolling move 5 checks: 1.10%"))
+                () -> assertTrue(normalizedMessage.contains("Move since last saved quote: 0.10%")),
+                () -> assertTrue(normalizedMessage.contains("Alert window move (2 saved quotes): 1.10%"))
         );
+        verifyNoInteractions(finnhubClient, telegramClient);
+    }
+
+    @Test
+    void scanMarketUsesLastSentQuoteInsideRollingWindowForUserAlertRollingMovement() {
+        Quote currentQuote = quote("AAPL", -1.84);
+        QuoteEntity currentEntity = entity("AAPL", -1.84);
+        QuoteEntity lastSentEntity = entity(11L, "AAPL", -1.93);
+        QuoteEntity olderEntity = entity(10L, "AAPL", -2.57);
+        List<QuoteEntity> persistedHistoryNewestFirst = List.of(lastSentEntity, olderEntity);
+        UserSymbolAlertStateEntity alertState = new UserSymbolAlertStateEntity();
+        alertState.setLastSentQuote(lastSentEntity);
+        alertState.setLastSentAt(Instant.now());
+
+        when(yahooFinanceClient.getQuote("AAPL")).thenReturn(currentQuote);
+        when(quoteMapper.toEntity(currentQuote)).thenReturn(currentEntity);
+        when(quoteRepository.findBySymbolOrderByCreatedDesc(eq("AAPL"), any(Pageable.class)))
+                .thenReturn(persistedHistoryNewestFirst);
+        when(quoteMapper.toQuotes(persistedHistoryNewestFirst)).thenReturn(new ArrayList<>(List.of(
+                quote("AAPL", -1.93),
+                quote("AAPL", -2.57)
+        )));
+        when(userPropertyService.findUsersWatchingSymbol("AAPL")).thenReturn(List.of(watchlistProperty(1L, "AAPL")));
+        when(userPropertyService.loadSharesAlertSettings(1L)).thenReturn(new UserAlertSettings(0.5, 0.5));
+        when(alertStateRepository.findByUserIdAndSymbolIgnoreCase(1L, "AAPL")).thenReturn(Optional.of(alertState));
+
+        service.scanMarket();
+
+        assertEquals(0.09, currentEntity.getDelta(), 0.0001);
+        verify(quoteRepository).save(currentEntity);
+        verify(notificationService, never()).sendShareAlert(any(), anyString(), any(), anyString());
         verifyNoInteractions(finnhubClient, telegramClient);
     }
 
@@ -381,6 +434,12 @@ class MarketScannerServiceTest {
         entity.setLow(90.0);
         entity.setOpen(95.0);
         entity.setPreviousClose(99.0);
+        return entity;
+    }
+
+    private static QuoteEntity entity(Long id, String symbol, double percentChange) {
+        QuoteEntity entity = entity(symbol, percentChange);
+        entity.setId(id);
         return entity;
     }
 

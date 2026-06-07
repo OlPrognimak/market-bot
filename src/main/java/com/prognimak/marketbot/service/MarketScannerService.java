@@ -32,8 +32,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
-import static com.prognimak.marketbot.util.Utils.calculateRollingChanges;
-import static com.prognimak.marketbot.util.Utils.shouldSendForUser;
+import static com.prognimak.marketbot.util.Utils.*;
 
 @Service
 @Profile("!history-backfill")
@@ -52,10 +51,6 @@ public class MarketScannerService {
     private final UserPropertyService userPropertyService;
     private final AsyncNotificationService notificationService;
     private final UserSymbolAlertStateRepository alertStateRepository;
-
-    private static final String TEXT_COLOR_RED = "\u001B[31m";
-    private static final String TEXT_COLOR_GREEN = "\u001B[32m";
-    private static final String TEXT_COLOR_NON = "\u001B[0m";
 
     //private static final int MAX_ROLLING_SIZE = 5;
 
@@ -90,23 +85,31 @@ public class MarketScannerService {
                 Quote quote = getQuote(symbol);
 
                 double currentPercent = quote.percentChange();
-                PersistedHistory persistedHistory = persistedHistory(symbol);
-                List<QuoteEntity> lastPersistedChanges = persistedHistory.changes();
-                if (lastPersistedChanges.isEmpty()) {
+                List<QuoteEntity> persistedChanges = persistedHistory(symbol).changes();
+                if (persistedChanges.isEmpty()) {
                     log.info("{} ({}) initial value saved: {}%", companyName, symbol, String.format(Locale.ROOT, "%.2f", currentPercent));
                     QuoteEntity entity = quoteMapper.toEntity(quote);
                     entity.setDelta(0);
                     quoteRepository.save(entity);
-                    recordDashboardResult(quote, watchlistItem, currentPercent, 0, 0, false, null, lastPersistedChanges);
+                    recordDashboardResult(quote, watchlistItem, currentPercent, 0, 0, false, null, List.of());
                     continue;
                 }
 
-                QuoteEntity latestPersistedChange = quoteRepository.findFirstBySymbolOrderByCreatedDesc(symbol)
-                        .orElse(lastPersistedChanges.getFirst());
+                List<QuoteEntity> lastPersistedChanges = compatibleHistory(persistedChanges, quote);
+                if (lastPersistedChanges.isEmpty()) {
+                    log.info("{} ({}) new day-change baseline saved: {}%", companyName, symbol, String.format(Locale.ROOT, "%.2f", currentPercent));
+                    QuoteEntity entity = quoteMapper.toEntity(quote);
+                    entity.setDelta(0);
+                    quoteRepository.save(entity);
+                    recordDashboardResult(quote, watchlistItem, currentPercent, 0, 0, false, null, List.of());
+                    continue;
+                }
+
+                QuoteEntity latestPersistedChange = lastPersistedChanges.getFirst();
                 double delta = Utils.roundDouble(quote.percentChange() - latestPersistedChange.getPercentChange(), 2);
                 QuoteEntity quoteEntity = quoteMapper.toEntity(quote);
                 quoteEntity.setDelta(delta);
-                if (!hasQuoteChanged(quote, latestPersistedChange)) {
+                if (!hasQuoteChanged(quote, latestPersistedChange, properties.scanner().quoteChangeEpsilon())) {
                     recordDashboardResult(quote, watchlistItem, latestPersistedChange.getPercentChange(), 0,
                             0, false, null,  lastPersistedChanges);
 
@@ -144,18 +147,18 @@ public class MarketScannerService {
                             TEXT_COLOR_NON
                     );
 
-                    messageText = buildMessage(quote, watchlistItem, delta, rollingDeltaSum);
                     for (AppUserPropertyEntity userWatchConfig : usersWatchingSymbol) {
                         Long userId = userWatchConfig.getUser().getId();
                         UserAlertSettings alertSettings = userPropertyService.loadSharesAlertSettings(userId);
+                        double userRollingDelta = rollingDeltaForUser(userId, symbol, quote, lastPersistedChanges, rollingDeltaSum);
 
-                        if (!shouldSendForUser(alertSettings, delta, rollingDeltaSum)) {
+                        if (!shouldSendForUser(alertSettings, delta, userRollingDelta)) {
                             log.info("Share alert skipped for user {} and symbol {}: delta {}% / threshold {}%, rolling {}% / threshold {}%",
                                     userId,
                                     symbol,
                                     formatPercent(delta),
                                     formatPercent(alertSettings.deltaThreshold()),
-                                    formatPercent(rollingDeltaSum),
+                                    formatPercent(userRollingDelta),
                                     formatPercent(alertSettings.rollingThreshold()));
                             continue;
                         }
@@ -164,8 +167,12 @@ public class MarketScannerService {
                                     userId, symbol, savedQuoteEntity.getId());
                             continue;
                         }
-                        if (notificationService.sendShareAlert(userId, symbol, savedQuoteEntity.getId(), messageText)) {
+                        String userMessageText = buildMessage(quote, watchlistItem, delta, userRollingDelta, lastPersistedChanges.size());
+                        if (notificationService.sendShareAlert(userId, symbol, savedQuoteEntity.getId(), userMessageText)) {
                             haveSendFlag = true;
+                            if (messageText == null) {
+                                messageText = userMessageText;
+                            }
                         }
                     }
                 }
@@ -184,26 +191,6 @@ public class MarketScannerService {
         return String.format(Locale.ROOT, "%.2f", value);
     }
 
-    private String directionLabel(double value) {
-        if (value > 0) {
-            return "UP";
-        }
-        if (value < 0) {
-            return "DOWN";
-        }
-        return "FLAT";
-    }
-
-    private String colorFor(double value) {
-        if (value > 0) {
-            return TEXT_COLOR_GREEN;
-        }
-        if (value < 0) {
-            return TEXT_COLOR_RED;
-        }
-        return "";
-    }
-
     private PersistedHistory persistedHistory(String symbol) {
         List<QuoteEntity> recentChanges = quoteRepository.findBySymbolOrderByCreatedDesc(
                 symbol, PageRequest.of(0, properties.alert().maximalRollingSize()));
@@ -215,6 +202,13 @@ public class MarketScannerService {
     }
 
     private record PersistedHistory(List<QuoteEntity> changes, boolean unsent) {
+    }
+
+    private List<QuoteEntity> compatibleHistory(List<QuoteEntity> recentChanges, Quote quote) {
+        return recentChanges.stream()
+                .takeWhile(persisted ->
+                        sameQuoteBaseline(persisted, quote, properties.scanner().quoteChangeEpsilon()))
+                .toList();
     }
 
     private QuoteEntity savedQuote(QuoteEntity quoteEntity) {
@@ -232,19 +226,30 @@ public class MarketScannerService {
                 .orElse(false);
     }
 
-    private boolean hasQuoteChanged(Quote quote, QuoteEntity latestPersistedChange) {
-        return changed(quote.current(), latestPersistedChange.getCurrent())
-                || changed(quote.percentChange(), latestPersistedChange.getPercentChange())
-                || changed(quote.change(), latestPersistedChange.getChange())
-                || changed(quote.high(), latestPersistedChange.getHigh())
-                || changed(quote.low(), latestPersistedChange.getLow())
-                || changed(quote.open(), latestPersistedChange.getOpen())
-                || changed(quote.previousClose(), latestPersistedChange.getPreviousClose());
+    private double rollingDeltaForUser(
+            Long userId,
+            String symbol,
+            Quote quote,
+            List<QuoteEntity> lastPersistedChanges,
+            double defaultRollingDelta
+    ) {
+        return alertStateRepository.findByUserIdAndSymbolIgnoreCase(userId, symbol)
+                .map(state -> state.getLastSentQuote() == null ? null : state.getLastSentQuote())
+                .filter(lastSentQuote -> isInsideRollingWindow(lastSentQuote, lastPersistedChanges))
+                .map(lastSentQuote -> Utils.roundDouble(quote.percentChange() - lastSentQuote.getPercentChange(), 2))
+                .orElse(defaultRollingDelta);
     }
 
-    private boolean changed(double left, double right) {
-        return Math.abs(left - right) >= properties.scanner().quoteChangeEpsilon();
+    private boolean isInsideRollingWindow(QuoteEntity quote, List<QuoteEntity> lastPersistedChanges) {
+        if (quote.getId() == null) {
+            return false;
+        }
+        return lastPersistedChanges.stream()
+                .map(QuoteEntity::getId)
+                .filter(Objects::nonNull)
+                .anyMatch(id -> Objects.equals(id, quote.getId()));
     }
+
 
     private void recordDashboardResult(
             Quote quote,
@@ -297,7 +302,8 @@ public class MarketScannerService {
             Quote quote,
             WatchlistItem watchlistItem,
             double delta,
-            double rollingDelta
+            double rollingDelta,
+            int rollingWindowSize
     ) {
         String icon = rollingDelta >= 0 ? "🟢" : "🔴";
         String direction = rollingDelta >= 0 ? "UP" : "DOWN";
@@ -312,8 +318,8 @@ public class MarketScannerService {
             %s (%s) %s
             
             Day change: %.2f%%
-            Move since last check: %.2f%%
-            Rolling move 5 checks: %.2f%%
+            Move since last saved quote: %.2f%%
+            Alert window move (%d saved quotes): %.2f%%
             
             Price: $%.2f
             Today range: $%.2f - $%.2f
@@ -327,6 +333,7 @@ public class MarketScannerService {
                 direction,
                 quote.percentChange(),
                 delta,
+                rollingWindowSize,
                 rollingDelta,
                 quote.current(),
                 quote.low(),
