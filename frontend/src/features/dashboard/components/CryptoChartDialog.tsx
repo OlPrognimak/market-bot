@@ -15,6 +15,8 @@ import {
 } from "lightweight-charts";
 import { authFetch } from "@/lib/auth";
 import { formatDateTime, formatPercent } from "@/lib/format";
+import { NewsInsightDialog } from "@/features/news/components/NewsInsightDialog";
+import { ResearchDialog } from "@/features/news/components/ResearchDialog";
 import type { CryptoScanResult, MarketChartRange, MarketChartResponse } from "../types/market-dashboard";
 
 type Props = {
@@ -32,6 +34,8 @@ export function CryptoChartDialog({ token, result, onClose }: Props) {
   const [chart, setChart] = useState<MarketChartResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [newsOpen, setNewsOpen] = useState(false);
+  const [researchOpen, setResearchOpen] = useState(false);
 
   useEffect(() => {
     if (!result) {
@@ -162,6 +166,7 @@ export function CryptoChartDialog({ token, result, onClose }: Props) {
   const latest = points.at(-1);
 
   return (
+    <>
     <div className="modal-backdrop" role="presentation" onClick={onClose}>
       <section className="chart-dialog" role="dialog" aria-modal="true" aria-labelledby="crypto-chart-title" onClick={(event) => event.stopPropagation()}>
         <header className="chart-dialog-header">
@@ -170,7 +175,11 @@ export function CryptoChartDialog({ token, result, onClose }: Props) {
             <p>{result.symbol} | Binance USDT pair</p>
             {chart ? <p>{chartDateRange(chart)}</p> : null}
           </div>
-          <button type="button" className="icon-button" onClick={onClose} aria-label="Close chart">x</button>
+          <div className="chart-dialog-actions">
+            <button type="button" className="secondary-button" onClick={() => setNewsOpen(true)}>News</button>
+            <button type="button" className="secondary-button" onClick={() => setResearchOpen(true)}>Analyse</button>
+            <button type="button" className="icon-button" onClick={onClose} aria-label="Close chart">x</button>
+          </div>
         </header>
 
         <div className="range-tabs" role="tablist" aria-label="Crypto chart range">
@@ -202,6 +211,13 @@ export function CryptoChartDialog({ token, result, onClose }: Props) {
         </div>
       </section>
     </div>
+    {newsOpen ? (
+      <NewsInsightDialog token={token} instrumentType="CRYPTO" symbol={result.baseAsset} instrumentName={result.coinName} onClose={() => setNewsOpen(false)} />
+    ) : null}
+    {researchOpen ? (
+      <ResearchDialog token={token} instrumentType="CRYPTO" symbol={result.baseAsset} instrumentName={result.coinName} onClose={() => setResearchOpen(false)} />
+    ) : null}
+    </>
   );
 }
 

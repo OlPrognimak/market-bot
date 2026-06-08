@@ -33,6 +33,11 @@ spring:
           create_namespaces: true
         connection:
           pool_size: 30
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY:no-key-configured}
+      chat:
+        model: ${OPENAI_NEWS_MODEL:gpt-5-mini}
 
 logging:
 #  file:
@@ -52,7 +57,7 @@ logging:
 
 market-bot:
   providers:
-    finnhub-api-key: ${FINNHUB_API_KEY:xxxx}
+    finnhub-api-key: ${FINNHUB_API_KEY:no-key-configured}
     twelve-data-api-key: ${TWELVE_API_KEY:xxxx}
 
   message-sender:
@@ -116,6 +121,21 @@ market-bot:
     scan-window: ${MARKET_BOT_CRYPTO_SCAN_WINDOW:5m}
     max-quote-fetch-attempts: ${MARKET_BOT_CRYPTO_MAX_QUOTE_FETCH_ATTEMPTS:3}
     quote-fetch-retry-delay-ms: ${MARKET_BOT_CRYPTO_QUOTE_FETCH_RETRY_DELAY_MS:1000}
+
+  news-monitoring:
+    enabled: ${MARKET_BOT_NEWS_MONITORING_ENABLED:true}
+    lookback-hours: ${MARKET_BOT_NEWS_LOOKBACK_HOURS:168}
+    max-articles-per-instrument: ${MARKET_BOT_NEWS_MAX_ARTICLES_PER_INSTRUMENT:10}
+    minimum-confidence: ${MARKET_BOT_NEWS_MINIMUM_CONFIDENCE:65}
+    minimum-impact-score: ${MARKET_BOT_NEWS_MINIMUM_IMPACT_SCORE:70}
+    maximum-analysis-age-hours: ${MARKET_BOT_NEWS_MAXIMUM_ANALYSIS_AGE_HOURS:72}
+    send-alerts: ${MARKET_BOT_NEWS_SEND_ALERTS:false}
+    background-monitoring-enabled: ${MARKET_BOT_NEWS_BACKGROUND_MONITORING_ENABLED:false}
+    background-poll-interval-ms: ${MARKET_BOT_NEWS_BACKGROUND_POLL_INTERVAL_MS:900000}
+    web-research-model: ${OPENAI_WEB_RESEARCH_MODEL:gpt-5-mini}
+    providers:
+      yahoo-enabled: ${MARKET_BOT_NEWS_YAHOO_ENABLED:true}
+      finnhub-enabled: ${MARKET_BOT_NEWS_FINNHUB_ENABLED:true}
 
   dashboard:
     enabled: true

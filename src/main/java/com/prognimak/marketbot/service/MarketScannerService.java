@@ -180,7 +180,8 @@ public class MarketScannerService {
 
                // Thread.sleep(500);
             } catch (Exception e) {
-                log.warn("Error checking {} ({}): {}", companyName, symbol, e.getMessage(), e);
+                log.warn("Error checking {} ({}): {}", companyName, symbol, e.getMessage());
+                log.debug("Quote scan failure for {}", symbol, e);
             }
         }
         marketDashboardService.publishSnapshot(scanStartedAt);
@@ -351,37 +352,41 @@ public class MarketScannerService {
         return "%s (%s)".formatted(watchlistItem.name(), watchlistItem.region());
     }
 
-    private Quote getQuoteForProvider(String symbol) {
-        return yahooFinanceClient.getQuote(symbol);
+    private Quote getQuote(String symbol) {
+        return getQuoteWithRetry("Yahoo Finance public API", symbol, () -> yahooFinanceClient.getQuote(symbol));
     }
 
-    /*That uses in case of using two providers.*/
-    private Quote getQuote(String symbol) {
+    private Quote getQuoteWithRetry(String providerName, String symbol, QuoteSupplier supplier) {
         for (int attempt = 1; attempt <= properties.scanner().maxQuoteFetchAttempts(); attempt++) {
             try {
-                return getQuoteForProvider(symbol);
+                Quote quote = supplier.get();
+                if (quote == null) {
+                    throw new IllegalStateException(providerName + " returned no quote");
+                }
+                return quote;
             } catch (WebClientResponseException.NotFound e) {
-                // TODO: Track repeated 404s and temporarily disable unavailable symbols instead of logging every scan.
-                throw new IllegalArgumentException("Quote provider returned 404 for symbol " + symbol, e);
+                throw new IllegalArgumentException(providerName + " returned 404 for symbol " + symbol, e);
             } catch (WebClientResponseException e) {
                 if (!isTransientProviderError(e) || attempt == properties.scanner().maxQuoteFetchAttempts()) {
-                    throw new IllegalStateException("Quote provider error for symbol " + symbol
+                    throw new IllegalStateException(providerName + " error for symbol " + symbol
                             + ": HTTP " + e.getStatusCode().value(), e);
                 }
                 log.warn(
-                        "Transient quote provider error for symbol {}: HTTP {}. Retry {}/{}.",
+                        "Transient {} quote error for symbol {}: HTTP {}. Retry {}/{}.",
+                        providerName,
                         symbol,
                         e.getStatusCode().value(),
                         attempt,
                         properties.scanner().maxQuoteFetchAttempts()
                 );
-                sleepBeforeRetry(symbol);
+                sleepBeforeRetry(providerName, symbol);
             } catch (Exception e) {
-                throw new IllegalStateException("Could not load quote for symbol " + symbol + ": " + e.getMessage(), e);
+                throw new IllegalStateException(providerName + " could not load quote for symbol "
+                        + symbol + ": " + e.getMessage(), e);
             }
         }
 
-        throw new IllegalStateException("Could not load quote for symbol " + symbol);
+        throw new IllegalStateException(providerName + " could not load quote for symbol " + symbol);
     }
 
     private boolean isTransientProviderError(WebClientResponseException e) {
@@ -389,13 +394,19 @@ public class MarketScannerService {
         return statusCode == 429 || e.getStatusCode().is5xxServerError();
     }
 
-    private void sleepBeforeRetry(String symbol) {
+    private void sleepBeforeRetry(String providerName, String symbol) {
         try {
             Thread.sleep(properties.scanner().quoteFetchRetryDelayMs());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new IllegalStateException("Interrupted while waiting to retry quote for symbol " + symbol, e);
+            throw new IllegalStateException("Interrupted while waiting to retry " + providerName
+                    + " quote for symbol " + symbol, e);
         }
+    }
+
+    @FunctionalInterface
+    private interface QuoteSupplier {
+        Quote get();
     }
 
     private boolean isYahooEuropeSymbol(String symbol) {

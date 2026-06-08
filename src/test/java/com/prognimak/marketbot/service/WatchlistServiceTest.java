@@ -100,7 +100,9 @@ class WatchlistServiceTest {
                 new AppProperties.ScannerConfig(30_000, 0.0001, 0.08, 3, 1_000),
                 new AppProperties.SharesConfig(watchlistFile, watchlist),
                 new AppProperties.AlertConfig(-0.4, 0.4, 0.8, 5),
-                new AppProperties.CryptoConfig(true, 60_000, null, Map.of("BTC", "Bitcoin"), 1_000_000, 3, "5m", 3, 1_000)
+                new AppProperties.CryptoConfig(true, 60_000, null, Map.of("BTC", "Bitcoin"), 1_000_000, 3, "5m", 3, 1_000),
+                new AppProperties.NewsMonitoringConfig(false, 24, 10, 65, 70, 72, false, false, 900_000,
+                        new AppProperties.NewsProviderConfig(true, false))
         );
     }
 

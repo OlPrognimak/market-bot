@@ -11,7 +11,8 @@ public record AppProperties(
         ScannerConfig scanner,
         SharesConfig shares,
         AlertConfig alert,
-        CryptoConfig crypto
+        CryptoConfig crypto,
+        NewsMonitoringConfig newsMonitoring
 ) {
     public record ProviderConfig(
             String finnhubApiKey,
@@ -59,6 +60,26 @@ public record AppProperties(
             String scanWindow,
             int maxQuoteFetchAttempts,
             long quoteFetchRetryDelayMs
+    ) {
+    }
+
+    public record NewsMonitoringConfig(
+            boolean enabled,
+            int lookbackHours,
+            int maxArticlesPerInstrument,
+            int minimumConfidence,
+            int minimumImpactScore,
+            int maximumAnalysisAgeHours,
+            boolean sendAlerts,
+            boolean backgroundMonitoringEnabled,
+            long backgroundPollIntervalMs,
+            NewsProviderConfig providers
+    ) {
+    }
+
+    public record NewsProviderConfig(
+            boolean yahooEnabled,
+            boolean finnhubEnabled
     ) {
     }
 }

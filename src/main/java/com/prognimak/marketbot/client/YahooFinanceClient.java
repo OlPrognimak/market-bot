@@ -17,17 +17,37 @@ import static com.prognimak.marketbot.util.Utils.roundDouble;
 @Service
 @RequiredArgsConstructor
 public class YahooFinanceClient implements MarketDataProvider {
+    private static final List<String> PUBLIC_CHART_HOSTS = List.of(
+            "query1.finance.yahoo.com",
+            "query2.finance.yahoo.com"
+    );
 
     private final WebClient.Builder builder;
 
-
     public Quote getQuote(String symbol) {
+        RuntimeException firstFailure = null;
+        for (String host : PUBLIC_CHART_HOSTS) {
+            try {
+                return getQuote(host, symbol);
+            } catch (RuntimeException exception) {
+                if (firstFailure == null) {
+                    firstFailure = exception;
+                } else {
+                    firstFailure.addSuppressed(exception);
+                }
+            }
+        }
+        throw firstFailure == null
+                ? new IllegalStateException("No Yahoo Finance public chart host is configured")
+                : firstFailure;
+    }
 
+    private Quote getQuote(String host, String symbol) {
         YahooChartResponse response = builder.build()
                 .get()
                 .uri(uriBuilder -> uriBuilder
                         .scheme("https")
-                        .host("query1.finance.yahoo.com")
+                        .host(host)
                         .path("/v8/finance/chart/{symbol}")
                         .queryParam("range", "1d")
                         .queryParam("interval", "1m")
