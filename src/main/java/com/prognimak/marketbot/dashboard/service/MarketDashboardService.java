@@ -58,6 +58,15 @@ public class MarketDashboardService {
         return buildSnapshot(Instant.now(), userId);
     }
 
+    public void refreshSnapshots() {
+        Instant lastScanAt = latestSnapshot == null ? Instant.now() : latestSnapshot.lastScanAt();
+        MarketDashboardSnapshot snapshot = buildSnapshot(lastScanAt);
+        latestSnapshot = snapshot;
+        if (properties.websocketEnabled()) {
+            webSocketHandler.broadcast(userId -> userId == null ? snapshot : buildSnapshot(lastScanAt, userId));
+        }
+    }
+
     private MarketDashboardSnapshot buildSnapshot(Instant lastScanAt) {
         return buildSnapshot(lastScanAt, null);
     }

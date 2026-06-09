@@ -101,9 +101,10 @@ export function WatchlistEditor({
       });
   }, [rows, tableFilters]);
 
-  const validationInvalid = Object.keys(validationErrors).length > 0
-    || Object.keys(validatingRows).length > 0
-    || Object.keys(pendingValidationRows).length > 0;
+  const validationInvalid = rows.some((row, index) =>
+    row.enabled
+    && Boolean(validationErrors[index] || validatingRows[index] || pendingValidationRows[index])
+  );
 
   useEffect(() => {
     onValidationStateChange?.(validationInvalid);
@@ -187,6 +188,11 @@ export function WatchlistEditor({
     if (!token || !catalogType) {
       return;
     }
+    if (!rows[index]?.enabled) {
+      clearValidationError(index);
+      clearPendingValidation(index);
+      return;
+    }
     const normalizedSymbol = normalizeSymbol(symbol);
     if (!normalizedSymbol) {
       clearValidationError(index);
@@ -227,7 +233,9 @@ export function WatchlistEditor({
     }
 
     const timeout = window.setTimeout(() => {
-      pendingIndexes.forEach((index) => validateManualSymbol(index, rows[index]?.propertyName ?? ""));
+      pendingIndexes
+        .filter((index) => rows[index]?.enabled)
+        .forEach((index) => validateManualSymbol(index, rows[index]?.propertyName ?? ""));
     }, 650);
 
     return () => window.clearTimeout(timeout);
@@ -302,7 +310,21 @@ export function WatchlistEditor({
                     <label className="checkbox-label compact-checkbox">
                       <input
                         checked={row.enabled}
-                        onChange={(event) => updateWatchlistRow(index, { enabled: event.target.checked }, setRows)}
+                        onChange={(event) => {
+                          const enabled = event.target.checked;
+                          if (!enabled) {
+                            clearValidationError(index);
+                            clearPendingValidation(index);
+                            setValidatingRows((current) => {
+                              const next = { ...current };
+                              delete next[index];
+                              return next;
+                            });
+                          } else {
+                            markPendingValidation(index, row.propertyName);
+                          }
+                          updateWatchlistRow(index, { enabled }, setRows);
+                        }}
                         type="checkbox"
                         aria-label={`Enable ${row.propertyName || "symbol"}`}
                       />

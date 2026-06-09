@@ -12,6 +12,7 @@ import com.prognimak.marketbot.user.model.UserPropertyValueType;
 import com.prognimak.marketbot.user.model.UserResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,6 +37,7 @@ public class UserManagementService {
     private final AppUserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final UserMapper userMapper;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional(readOnly = true)
     public List<UserResponse> list() {
@@ -68,7 +70,9 @@ public class UserManagementService {
         user.setEnabled(request.enabled());
         user.setMetadata(normalizeMetadata(request.metadata()));
         replaceProperties(user, request.properties());
-        return userMapper.toResponse(userRepository.save(user));
+        AppUserEntity saved = userRepository.save(user);
+        publishWatchlistChanged(saved);
+        return userMapper.toResponse(saved);
     }
 
     @Transactional
@@ -85,7 +89,9 @@ public class UserManagementService {
         user.setEnabled(true);
         user.setMetadata(normalizeMetadata(request.metadata()));
         replaceProperties(user, request.properties());
-        return userRepository.save(user);
+        AppUserEntity saved = userRepository.save(user);
+        publishWatchlistChanged(saved);
+        return saved;
     }
 
     @Transactional
@@ -106,7 +112,9 @@ public class UserManagementService {
         user.getMetadata().clear();
         user.getMetadata().putAll(normalizeMetadata(request.metadata()));
         replaceProperties(user, request.properties());
-        return userMapper.toResponse(userRepository.save(user));
+        AppUserEntity saved = userRepository.save(user);
+        publishWatchlistChanged(saved);
+        return userMapper.toResponse(saved);
     }
 
     @Transactional
@@ -124,7 +132,9 @@ public class UserManagementService {
         user.getMetadata().clear();
         user.getMetadata().putAll(normalizeMetadata(request.metadata()));
         replaceProperties(user, request.properties());
-        return userMapper.toResponse(userRepository.save(user));
+        AppUserEntity saved = userRepository.save(user);
+        publishWatchlistChanged(saved);
+        return userMapper.toResponse(saved);
     }
 
     @Transactional
@@ -134,6 +144,7 @@ public class UserManagementService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot delete the last enabled admin user");
         }
         userRepository.delete(user);
+        eventPublisher.publishEvent(new UserWatchlistChangedEvent(id));
     }
 
     private AppUserEntity findUser(Long id) {
@@ -258,5 +269,9 @@ public class UserManagementService {
             return null;
         }
         return value.trim();
+    }
+
+    private void publishWatchlistChanged(AppUserEntity user) {
+        eventPublisher.publishEvent(new UserWatchlistChangedEvent(user.getId()));
     }
 }
