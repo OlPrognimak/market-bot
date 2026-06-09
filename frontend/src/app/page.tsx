@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { CryptoDashboardPage } from "@/features/dashboard/components/CryptoDashboardPage";
 import { DashboardPage } from "@/features/dashboard/components/DashboardPage";
+import { FuturesDashboardPage } from "@/features/dashboard/components/FuturesDashboardPage";
 import { CatalogManagementPage } from "@/features/users/components/CatalogManagementPage";
 import { LoginPage } from "@/features/users/components/LoginPage";
 import { SignUpPage } from "@/features/users/components/SignUpPage";
@@ -12,7 +13,7 @@ import { UserSettingsPage } from "@/features/users/components/UserSettingsPage";
 import { clearSession, fetchCurrentUser, loadStoredSession, storeSession } from "@/lib/auth";
 import type { AuthSession } from "@/features/users/types";
 
-type AppView = "dashboard" | "crypto" | "users" | "settings" | "catalog";
+type AppView = "dashboard" | "crypto" | "futures" | "users" | "settings" | "catalog";
 
 export default function Home() {
   const [session, setSession] = useState<AuthSession | null>(null);
@@ -86,6 +87,8 @@ export default function Home() {
           onLogout={logout}
           onOpenSettings={() => goToView("settings")}
         />
+      ) : view === "futures" ? (
+        <FuturesDashboardPage token={session.token} currentUser={session.user} />
       ) : view === "users" ? (
         <main className="dashboard">
           <header className="dashboard-header">
@@ -144,6 +147,7 @@ function AppShell({
   const links: Array<{ view: AppView; label: string }> = [
     { view: "dashboard", label: "Shares" },
     { view: "crypto", label: "Crypto" },
+    { view: "futures", label: "Futures" },
     { view: "settings", label: "Settings" },
     { view: "users", label: session.user.role === "ADMIN" ? "Users" : "Account" },
     ...(session.user.role === "ADMIN" ? [{ view: "catalog" as AppView, label: "Catalog" }] : [])

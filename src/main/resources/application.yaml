@@ -122,6 +122,18 @@ market-bot:
     max-quote-fetch-attempts: ${MARKET_BOT_CRYPTO_MAX_QUOTE_FETCH_ATTEMPTS:3}
     quote-fetch-retry-delay-ms: ${MARKET_BOT_CRYPTO_QUOTE_FETCH_RETRY_DELAY_MS:1000}
 
+  extended-hours:
+    enabled: ${MARKET_BOT_EXTENDED_HOURS_ENABLED:true}
+    poll-interval-ms: ${MARKET_BOT_EXTENDED_HOURS_POLL_INTERVAL_MS:60000}
+    stale-after-seconds: ${MARKET_BOT_EXTENDED_HOURS_STALE_AFTER_SECONDS:180}
+    rolling-size: ${MARKET_BOT_EXTENDED_HOURS_ROLLING_SIZE:15}
+
+  futures:
+    enabled: ${MARKET_BOT_FUTURES_ENABLED:true}
+    poll-interval-ms: ${MARKET_BOT_FUTURES_POLL_INTERVAL_MS:60000}
+    stale-after-seconds: ${MARKET_BOT_FUTURES_STALE_AFTER_SECONDS:180}
+    rolling-size: ${MARKET_BOT_FUTURES_ROLLING_SIZE:15}
+
   news-monitoring:
     enabled: ${MARKET_BOT_NEWS_MONITORING_ENABLED:true}
     lookback-hours: ${MARKET_BOT_NEWS_LOOKBACK_HOURS:168}

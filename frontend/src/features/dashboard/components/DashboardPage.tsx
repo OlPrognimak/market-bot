@@ -7,8 +7,10 @@ import { ConnectionStatus } from "./ConnectionStatus";
 import { MarketChartDialog } from "./MarketChartDialog";
 import { MarketResultsTable } from "./MarketResultsTable";
 import { SummaryStrip } from "./SummaryStrip";
+import { ExtendedHoursTable } from "./ExtendedHoursTable";
 import { useMarketDashboardSocket } from "../hooks/useMarketDashboardSocket";
-import type { MarketScanResult, SortKey } from "../types/market-dashboard";
+import { useExtendedHoursDashboard } from "../hooks/useExtendedHoursDashboard";
+import type { SortKey } from "../types/market-dashboard";
 import { sortMarketResults } from "../utils/sortMarketResults";
 import type { AppUser } from "@/features/users/types";
 
@@ -21,6 +23,9 @@ type Props = {
   onOpenCrypto: () => void;
 };
 
+const SESSION_VIEWS = ["OVERVIEW", "PRE_MARKET", "REGULAR", "POST_MARKET"] as const;
+type SessionView = typeof SESSION_VIEWS[number];
+
 export function DashboardPage({ token, currentUser }: Props) {
   const { snapshot, connectionState, error, fetchSnapshot, triggerScan } = useMarketDashboardSocket(token);
   const [sortKey, setSortKey] = useState<SortKey>("backend");
@@ -32,12 +37,33 @@ export function DashboardPage({ token, currentUser }: Props) {
   const [actionError, setActionError] = useState<string | null>(null);
   const [manualScanBusy, setManualScanBusy] = useState(false);
   const [chartSymbol, setChartSymbol] = useState<string | null>(null);
+  const sessionStorageKey = `market-dashboard-session:${currentUser.id}`;
+  const [sessionView, setSessionView] = useState<SessionView>(() => {
+    if (typeof window === "undefined") {
+      return "REGULAR";
+    }
+    const stored = window.localStorage.getItem(sessionStorageKey);
+    return SESSION_VIEWS.includes(stored as SessionView) ? stored as SessionView : "REGULAR";
+  });
+  const { snapshot: extendedSnapshot, fetchSnapshot: fetchExtendedSnapshot, triggerScan: triggerExtendedScan } = useExtendedHoursDashboard(token);
 
   useEffect(() => {
     fetchSnapshot().catch((err: unknown) => {
       setActionError(err instanceof Error ? err.message : "Could not load dashboard snapshot");
     });
   }, []);
+
+  useEffect(() => {
+    if (sessionView !== "REGULAR") {
+      fetchExtendedSnapshot(sessionView === "OVERVIEW" ? undefined : sessionView).catch((err: unknown) => {
+        setActionError(err instanceof Error ? err.message : "Could not load extended-hours snapshot");
+      });
+    }
+  }, [fetchExtendedSnapshot, sessionView]);
+
+  useEffect(() => {
+    window.localStorage.setItem(sessionStorageKey, sessionView);
+  }, [sessionStorageKey, sessionView]);
 
   const results = useMemo(() => {
     const rawResults = snapshot?.results ?? [];
@@ -137,7 +163,15 @@ export function DashboardPage({ token, currentUser }: Props) {
 
       <SummaryStrip snapshot={snapshot} />
 
-      <section className="toolbar dashboard-toolbar" aria-label="Dashboard controls">
+      <div className="session-selector" role="tablist" aria-label="Trading session">
+        {SESSION_VIEWS.map((session) => (
+          <button key={session} type="button" className={sessionView === session ? "active" : ""} onClick={() => setSessionView(session)}>
+            {session === "PRE_MARKET" ? "Pre-market" : session === "POST_MARKET" ? "Post-market" : session.charAt(0) + session.slice(1).toLowerCase()}
+          </button>
+        ))}
+      </div>
+
+      {sessionView === "REGULAR" ? <section className="toolbar dashboard-toolbar" aria-label="Dashboard controls">
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
@@ -183,11 +217,17 @@ export function DashboardPage({ token, currentUser }: Props) {
             {manualScanBusy ? "Scanning" : "Scan Now"}
           </button>
         ) : null}
-      </section>
+      </section> : <section className="toolbar" aria-label="Extended-hours controls">
+        <span className="toolbar-note">Yahoo extended-hours data may be delayed or unavailable outside US markets.</span>
+        <button type="button" className="secondary-button" onClick={() => fetchExtendedSnapshot(sessionView === "OVERVIEW" ? undefined : sessionView)}>Reload</button>
+        <button type="button" onClick={() => triggerExtendedScan(sessionView === "OVERVIEW" ? undefined : sessionView)}>Scan Now</button>
+      </section>}
 
       {actionError ? <div className="error-banner">{actionError}</div> : null}
 
-      <MarketResultsTable results={results} onOpenChart={(result) => setChartSymbol(result.symbol)} />
+      {sessionView === "REGULAR"
+        ? <MarketResultsTable results={results} onOpenChart={(result) => setChartSymbol(result.symbol)} />
+        : <ExtendedHoursTable results={extendedSnapshot?.results ?? []} />}
       <MarketChartDialog token={token} result={chartResult} onClose={() => setChartSymbol(null)} />
     </main>
   );

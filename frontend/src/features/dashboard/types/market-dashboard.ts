@@ -85,3 +85,51 @@ export type MarketChartResponse = {
   fallback: boolean;
   points: MarketChartPoint[];
 };
+
+export type MarketSession = "PRE_MARKET" | "REGULAR" | "POST_MARKET" | "CLOSED" | "UNKNOWN";
+export type FreshnessStatus = "LIVE" | "DELAYED" | "STALE" | "UNKNOWN";
+
+export type ExtendedHoursResult = {
+  symbol: string;
+  companyName: string;
+  region?: string | null;
+  sector?: string | null;
+  exchange?: string | null;
+  session: MarketSession;
+  price: number;
+  sessionMove: number;
+  delta: number;
+  rolling: number;
+  volume: number;
+  freshness: FreshnessStatus;
+  providerTimestamp: string;
+};
+
+export type ExtendedHoursSnapshot = {
+  lastScanAt: string;
+  results: ExtendedHoursResult[];
+};
+
+export type FuturesResult = {
+  symbol: string;
+  name: string;
+  underlying: string;
+  region?: string | null;
+  exchange?: string | null;
+  currency?: string | null;
+  price: number;
+  changeFromSettlement: number;
+  changeFromOpen: number;
+  delta: number;
+  rolling: number;
+  volume: number;
+  freshness: FreshnessStatus;
+  providerTimestamp: string;
+};
+
+export type FuturesSnapshot = {
+  lastScanAt: string;
+  results: FuturesResult[];
+  topPositive?: FuturesResult | null;
+  topNegative?: FuturesResult | null;
+};

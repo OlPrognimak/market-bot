@@ -21,8 +21,16 @@ public record YahooChartResponse(Chart chart) {
             String symbol,
             Double regularMarketPrice,
             Double previousClose,
-            Double chartPreviousClose
+            Double chartPreviousClose,
+            Long regularMarketTime,
+            String exchangeName,
+            String exchangeTimezoneName,
+            Integer gmtoffset,
+            TradingPeriods currentTradingPeriod
     ) {
+        public Meta(String symbol, Double regularMarketPrice, Double previousClose, Double chartPreviousClose) {
+            this(symbol, regularMarketPrice, previousClose, chartPreviousClose, null, null, null, null, null);
+        }
     }
 
     public record Indicators(List<QuoteData> quote) {
@@ -32,8 +40,18 @@ public record YahooChartResponse(Chart chart) {
             List<Double> open,
             List<Double> high,
             List<Double> low,
-            List<Double> close
+            List<Double> close,
+            List<Double> volume
     ) {
+        public QuoteData(List<Double> open, List<Double> high, List<Double> low, List<Double> close) {
+            this(open, high, low, close, null);
+        }
+    }
+
+    public record TradingPeriods(TradingPeriod pre, TradingPeriod regular, TradingPeriod post) {
+    }
+
+    public record TradingPeriod(String timezone, long start, long end, int gmtoffset) {
     }
 
     public record YahooError(

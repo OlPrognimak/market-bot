@@ -1,10 +1,13 @@
 package com.prognimak.marketbot.client;
 
 import com.prognimak.marketbot.model.Quote;
+import com.prognimak.marketbot.model.MarketSession;
 import com.prognimak.marketbot.model.YahooChartResponse;
+import com.prognimak.marketbot.model.YahooSessionQuote;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.reactive.function.client.WebClient;
 
+import java.time.Instant;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertAll;
@@ -57,6 +60,34 @@ class YahooFinanceClientTest {
                 () -> assertEquals(34.86, quote.previousClose()),
                 () -> assertEquals(-1.74, quote.change()),
                 () -> assertEquals(-4.99, quote.percentChange())
+        );
+    }
+
+    @Test
+    void mapSessionQuoteClassifiesPreMarketAndUsesPreviousCloseBaseline() {
+        long timestamp = Instant.now().getEpochSecond();
+        YahooChartResponse.TradingPeriods periods = new YahooChartResponse.TradingPeriods(
+                new YahooChartResponse.TradingPeriod("EDT", timestamp - 60, timestamp + 60, -14_400),
+                new YahooChartResponse.TradingPeriod("EDT", timestamp + 61, timestamp + 10_000, -14_400),
+                null
+        );
+        YahooChartResponse.Meta meta = new YahooChartResponse.Meta(
+                "AAPL", 201.0, 200.0, 200.0, timestamp, "NMS", "America/New_York", -14_400, periods
+        );
+        YahooChartResponse.QuoteData data = new YahooChartResponse.QuoteData(
+                List.of(201.0), List.of(202.0), List.of(200.5), List.of(202.0), List.of(1_000.0)
+        );
+        YahooSessionQuote quote = client.mapSessionQuote("AAPL", new YahooChartResponse.Result(
+                meta, List.of(timestamp), new YahooChartResponse.Indicators(List.of(data))
+        ));
+
+        assertAll(
+                () -> assertEquals(MarketSession.PRE_MARKET, quote.session()),
+                () -> assertEquals(MarketSession.PRE_MARKET, quote.activeSession()),
+                () -> assertEquals(202.0, quote.price()),
+                () -> assertEquals(200.0, quote.baselinePrice()),
+                () -> assertEquals(1.0, quote.changePercent()),
+                () -> assertEquals(1_000.0, quote.volume())
         );
     }
 

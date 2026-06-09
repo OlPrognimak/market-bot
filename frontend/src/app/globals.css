@@ -852,6 +852,46 @@ table {
   text-overflow: ellipsis;
 }
 
+.futures-results-table {
+  min-width: 1120px;
+}
+
+.futures-results-table th:nth-child(1),
+.futures-results-table td:nth-child(1) {
+  width: 220px;
+}
+
+.futures-results-table th:nth-child(2),
+.futures-results-table td:nth-child(2) {
+  width: 150px;
+}
+
+.futures-results-table th:nth-child(5),
+.futures-results-table td:nth-child(5) {
+  width: 130px;
+}
+
+.futures-contract-cell {
+  overflow: hidden;
+}
+
+.futures-contract-content {
+  display: flex;
+  min-width: 0;
+  gap: 7px;
+  overflow: hidden;
+}
+
+.futures-contract-content strong {
+  flex: 0 0 auto;
+}
+
+.futures-contract-content span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 th,
 td {
   padding: 11px 12px;
@@ -1223,6 +1263,47 @@ tbody tr:hover {
   color: var(--accent);
   font-weight: 700;
 }
+
+.session-selector {
+  display: flex;
+  gap: 1px;
+  width: fit-content;
+  margin: 0 0 12px;
+  border: 1px solid var(--border);
+  background: var(--border);
+}
+
+.session-selector button {
+  border: 0;
+  border-radius: 0;
+  background: var(--surface);
+  color: var(--muted);
+}
+
+.session-selector button.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.session-badge,
+.freshness {
+  display: inline-flex;
+  min-width: 44px;
+  justify-content: center;
+  padding: 3px 6px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.session-pre_market { color: #175cd3; background: #eff8ff; }
+.session-post_market { color: #7a5af8; background: #f4f3ff; }
+.session-regular { color: #067647; background: #ecfdf3; }
+.freshness-live { color: var(--positive); }
+.freshness-delayed { color: #b54708; background: #fffaeb; }
+.freshness-stale, .row-stale { color: var(--muted); background: var(--surface-muted); }
+.toolbar-note { color: var(--muted); font-size: 13px; }
 
 .news-research-toolbar {
   display: flex;

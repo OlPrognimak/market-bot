@@ -394,6 +394,8 @@ class MarketScannerServiceTest {
                 new AppProperties.SharesConfig(null, watchlist),
                 new AppProperties.AlertConfig(-0.4, 0.4, maximalDeltaPrice, 5),
                 new AppProperties.CryptoConfig(true, 60_000, null, Map.of("BTC", "Bitcoin"), 1_000_000, 3, "5m", 3, 1_000),
+                new AppProperties.ExtendedHoursConfig(false, 60_000, 180, 15),
+                new AppProperties.FuturesConfig(false, 60_000, 180, 15),
                 new AppProperties.NewsMonitoringConfig(false, 24, 10, 65, 70, 72, false, false, 900_000,
                         new AppProperties.NewsProviderConfig(true, false))
         );

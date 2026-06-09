@@ -2,7 +2,9 @@ package com.prognimak.marketbot.client;
 
 
 import com.prognimak.marketbot.model.Quote;
+import com.prognimak.marketbot.model.MarketSession;
 import com.prognimak.marketbot.model.YahooChartResponse;
+import com.prognimak.marketbot.model.YahooSessionQuote;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -11,6 +13,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 
 import java.util.List;
 import java.util.Objects;
+import java.time.Instant;
 
 import static com.prognimak.marketbot.util.Utils.roundDouble;
 
@@ -42,23 +45,26 @@ public class YahooFinanceClient implements MarketDataProvider {
                 : firstFailure;
     }
 
-    private Quote getQuote(String host, String symbol) {
-        YahooChartResponse response = builder.build()
-                .get()
-                .uri(uriBuilder -> uriBuilder
-                        .scheme("https")
-                        .host(host)
-                        .path("/v8/finance/chart/{symbol}")
-                        .queryParam("range", "1d")
-                        .queryParam("interval", "1m")
-                        .build(symbol)
-                )
-                .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
-                .header(HttpHeaders.USER_AGENT, "Mozilla/5.0")
-                .retrieve()
-                .bodyToMono(YahooChartResponse.class)
-                .block();
+    public YahooSessionQuote getSessionQuote(String symbol) {
+        RuntimeException firstFailure = null;
+        for (String host : PUBLIC_CHART_HOSTS) {
+            try {
+                return getSessionQuote(host, symbol);
+            } catch (RuntimeException exception) {
+                if (firstFailure == null) {
+                    firstFailure = exception;
+                } else {
+                    firstFailure.addSuppressed(exception);
+                }
+            }
+        }
+        throw firstFailure == null
+                ? new IllegalStateException("No Yahoo Finance public chart host is configured")
+                : firstFailure;
+    }
 
+    private Quote getQuote(String host, String symbol) {
+        YahooChartResponse response = loadChart(host, symbol, false);
         if (response == null || response.chart() == null) {
             throw new IllegalStateException("No Yahoo Finance data for symbol: " + symbol);
         }
@@ -74,6 +80,33 @@ public class YahooFinanceClient implements MarketDataProvider {
         }
 
         return mapChartResult(symbol, results.getFirst());
+    }
+
+    private YahooSessionQuote getSessionQuote(String host, String symbol) {
+        YahooChartResponse response = loadChart(host, symbol, true);
+        if (response == null || response.chart() == null || response.chart().result() == null || response.chart().result().isEmpty()) {
+            throw new IllegalStateException("No Yahoo Finance extended-hours data for symbol: " + symbol);
+        }
+        return mapSessionQuote(symbol, response.chart().result().getFirst());
+    }
+
+    private YahooChartResponse loadChart(String host, String symbol, boolean includePrePost) {
+        return builder.build()
+                .get()
+                .uri(uriBuilder -> uriBuilder
+                        .scheme("https")
+                        .host(host)
+                        .path("/v8/finance/chart/{symbol}")
+                        .queryParam("range", "1d")
+                        .queryParam("interval", "1m")
+                        .queryParam("includePrePost", includePrePost)
+                        .build(symbol)
+                )
+                .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
+                .header(HttpHeaders.USER_AGENT, "Mozilla/5.0")
+                .retrieve()
+                .bodyToMono(YahooChartResponse.class)
+                .block();
     }
 
     Quote mapChartResult(String requestedSymbol, YahooChartResponse.Result result) {
@@ -104,6 +137,69 @@ public class YahooFinanceClient implements MarketDataProvider {
                 roundDouble(dayOpen, 2),
                 roundDouble(previousClose, 2)
         );
+    }
+
+    YahooSessionQuote mapSessionQuote(String requestedSymbol, YahooChartResponse.Result result) {
+        YahooChartResponse.Meta meta = result.meta();
+        YahooChartResponse.Indicators indicators = result.indicators();
+        if (meta == null || indicators == null || indicators.quote() == null || indicators.quote().isEmpty()) {
+            throw new IllegalStateException("No Yahoo Finance session candles for symbol: " + requestedSymbol);
+        }
+        YahooChartResponse.QuoteData quote = indicators.quote().getFirst();
+        int latestIndex = latestNumericIndex(quote.close());
+        if (latestIndex < 0 || result.timestamp() == null || latestIndex >= result.timestamp().size()) {
+            throw new IllegalStateException("No timestamped Yahoo Finance session price for symbol: " + requestedSymbol);
+        }
+        long timestamp = result.timestamp().get(latestIndex);
+        double price = quote.close().get(latestIndex);
+        MarketSession session = session(meta.currentTradingPeriod(), timestamp);
+        MarketSession activeSession = session(meta.currentTradingPeriod(), Instant.now().getEpochSecond());
+        double baseline = session == MarketSession.POST_MARKET
+                ? valueOrLastClose(meta.regularMarketPrice(), quote.close())
+                : previousClose(meta.previousClose(), meta.chartPreviousClose(), price);
+        double changePercent = baseline <= 0 ? 0 : ((price - baseline) / baseline) * 100;
+        return new YahooSessionQuote(
+                meta.symbol() == null ? requestedSymbol : meta.symbol(),
+                session,
+                activeSession,
+                meta.exchangeName(),
+                meta.exchangeTimezoneName(),
+                roundDouble(price, 4),
+                roundDouble(baseline, 4),
+                roundDouble(changePercent, 2),
+                roundDouble(valueAtOrFallback(quote.open(), latestIndex, price), 4),
+                roundDouble(valueAtOrFallback(quote.high(), latestIndex, price), 4),
+                roundDouble(valueAtOrFallback(quote.low(), latestIndex, price), 4),
+                roundDouble(valueAtOrFallback(quote.volume(), latestIndex, 0), 2),
+                Instant.ofEpochSecond(timestamp)
+        );
+    }
+
+    private MarketSession session(YahooChartResponse.TradingPeriods periods, long timestamp) {
+        if (periods == null) {
+            return MarketSession.UNKNOWN;
+        }
+        if (inside(periods.pre(), timestamp)) {
+            return MarketSession.PRE_MARKET;
+        }
+        if (inside(periods.regular(), timestamp)) {
+            return MarketSession.REGULAR;
+        }
+        if (inside(periods.post(), timestamp)) {
+            return MarketSession.POST_MARKET;
+        }
+        return MarketSession.CLOSED;
+    }
+
+    private boolean inside(YahooChartResponse.TradingPeriod period, long timestamp) {
+        return period != null && timestamp >= period.start() && timestamp <= period.end();
+    }
+
+    private double valueAtOrFallback(List<Double> values, int index, double fallback) {
+        if (values == null || index < 0 || index >= values.size() || values.get(index) == null) {
+            return fallback;
+        }
+        return values.get(index);
     }
 
     private double valueOrLastClose(Double value, List<Double> closes) {

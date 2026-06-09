@@ -12,6 +12,8 @@ public record AppProperties(
         SharesConfig shares,
         AlertConfig alert,
         CryptoConfig crypto,
+        ExtendedHoursConfig extendedHours,
+        FuturesConfig futures,
         NewsMonitoringConfig newsMonitoring
 ) {
     public record ProviderConfig(
@@ -60,6 +62,22 @@ public record AppProperties(
             String scanWindow,
             int maxQuoteFetchAttempts,
             long quoteFetchRetryDelayMs
+    ) {
+    }
+
+    public record ExtendedHoursConfig(
+            boolean enabled,
+            long pollIntervalMs,
+            long staleAfterSeconds,
+            int rollingSize
+    ) {
+    }
+
+    public record FuturesConfig(
+            boolean enabled,
+            long pollIntervalMs,
+            long staleAfterSeconds,
+            int rollingSize
     ) {
     }
 
