@@ -182,7 +182,7 @@ export function CatalogManagementPage({ token }: Props) {
   const tableColSpan = catalogType === "stocks" ? 8 : 4;
 
   return (
-    <section className="users-layout">
+    <section className="users-layout catalog-page-layout">
       <div className="users-list">
         <div className="section-header">
           <h2>{catalogType === "stocks" ? "Shares Catalog" : "Crypto Catalog"}</h2>

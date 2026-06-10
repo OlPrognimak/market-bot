@@ -280,6 +280,25 @@ textarea {
   grid-template-columns: 1fr;
 }
 
+.catalog-page-layout {
+  grid-template-columns: 1fr;
+}
+
+.catalog-page-layout .user-form {
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  align-items: end;
+}
+
+.catalog-page-layout .user-form > h2,
+.catalog-page-layout .user-form > .error-banner,
+.catalog-page-layout .user-form > .form-actions {
+  grid-column: 1 / -1;
+}
+
+.catalog-page-layout .catalog-table-frame {
+  max-height: min(70vh, 820px);
+}
+
 .users-list,
 .user-form {
   border: 1px solid var(--border);
@@ -1304,6 +1323,19 @@ tbody tr:hover {
 .freshness-delayed { color: #b54708; background: #fffaeb; }
 .freshness-stale, .row-stale { color: var(--muted); background: var(--surface-muted); }
 .toolbar-note { color: var(--muted); font-size: 13px; }
+
+.session-data-date {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.session-data-date.fallback {
+  color: #b54708;
+}
 
 .news-research-toolbar {
   display: flex;

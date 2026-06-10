@@ -107,6 +107,8 @@ export type ExtendedHoursResult = {
 
 export type ExtendedHoursSnapshot = {
   lastScanAt: string;
+  dataDate?: string | null;
+  fallback: boolean;
   results: ExtendedHoursResult[];
 };
 
