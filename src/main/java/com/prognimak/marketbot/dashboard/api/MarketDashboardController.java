@@ -1,11 +1,13 @@
 package com.prognimak.marketbot.dashboard.api;
 
 import com.prognimak.marketbot.dashboard.config.MarketDashboardProperties;
+import com.prognimak.marketbot.dashboard.model.MarketCandleResponse;
 import com.prognimak.marketbot.dashboard.model.MarketChartRange;
 import com.prognimak.marketbot.dashboard.model.MarketChartResponse;
 import com.prognimak.marketbot.dashboard.model.MarketDashboardSnapshot;
 import com.prognimak.marketbot.dashboard.service.MarketChartService;
 import com.prognimak.marketbot.dashboard.service.MarketDashboardService;
+import com.prognimak.marketbot.dashboard.service.ShareCandleService;
 import com.prognimak.marketbot.security.AppUserPrincipal;
 import com.prognimak.marketbot.service.MarketScannerService;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +33,7 @@ public class MarketDashboardController {
     private final MarketDashboardProperties properties;
     private final MarketDashboardService dashboardService;
     private final MarketChartService chartService;
+    private final ShareCandleService candleService;
     private final MarketScannerService marketScannerService;
 
     @GetMapping("/snapshot")
@@ -39,6 +42,18 @@ public class MarketDashboardController {
             return dashboardService.latestSnapshot();
         }
         return dashboardService.latestSnapshot(principal.user().getId());
+    }
+
+    @GetMapping("/candles/{symbol}")
+    public MarketCandleResponse candles(
+            @PathVariable String symbol,
+            @RequestParam(defaultValue = "today") String range
+    ) {
+        try {
+            return candleService.candles(symbol, MarketChartRange.parse(range));
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported candle range: " + range, e);
+        }
     }
 
     @GetMapping("/chart/{symbol}")

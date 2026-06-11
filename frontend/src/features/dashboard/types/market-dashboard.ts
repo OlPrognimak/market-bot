@@ -86,6 +86,27 @@ export type MarketChartResponse = {
   points: MarketChartPoint[];
 };
 
+export type MarketCandlePoint = {
+  time: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+};
+
+export type MarketCandleResponse = {
+  symbol: string;
+  range: MarketChartRange;
+  interval: string;
+  timeZone: string;
+  requestedFrom: string;
+  actualFrom?: string | null;
+  actualTo?: string | null;
+  fallback: boolean;
+  points: MarketCandlePoint[];
+};
+
 export type MarketSession = "PRE_MARKET" | "REGULAR" | "POST_MARKET" | "CLOSED" | "UNKNOWN";
 export type FreshnessStatus = "LIVE" | "DELAYED" | "STALE" | "UNKNOWN";
 

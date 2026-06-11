@@ -2,9 +2,11 @@ package com.prognimak.marketbot.dashboard.api;
 
 import com.prognimak.marketbot.dashboard.config.MarketDashboardProperties;
 import com.prognimak.marketbot.dashboard.model.CryptoDashboardSnapshot;
+import com.prognimak.marketbot.dashboard.model.MarketCandleResponse;
 import com.prognimak.marketbot.dashboard.model.MarketChartRange;
 import com.prognimak.marketbot.dashboard.model.MarketChartResponse;
 import com.prognimak.marketbot.dashboard.service.CryptoChartService;
+import com.prognimak.marketbot.dashboard.service.CryptoCandleService;
 import com.prognimak.marketbot.dashboard.service.CryptoDashboardService;
 import com.prognimak.marketbot.security.AppUserPrincipal;
 import com.prognimak.marketbot.service.CryptoScannerService;
@@ -31,6 +33,7 @@ public class CryptoDashboardController {
     private final MarketDashboardProperties properties;
     private final CryptoDashboardService cryptoDashboardService;
     private final CryptoChartService cryptoChartService;
+    private final CryptoCandleService cryptoCandleService;
     private final CryptoScannerService cryptoScannerService;
 
     @GetMapping("/snapshot")
@@ -39,6 +42,18 @@ public class CryptoDashboardController {
             return cryptoDashboardService.latestSnapshot();
         }
         return cryptoDashboardService.latestSnapshot(principal.user().getId());
+    }
+
+    @GetMapping("/candles/{symbol}")
+    public MarketCandleResponse candles(
+            @PathVariable String symbol,
+            @RequestParam(defaultValue = "today") String range
+    ) {
+        try {
+            return cryptoCandleService.candles(symbol, MarketChartRange.parse(range));
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported candle range: " + range, e);
+        }
     }
 
     @GetMapping("/chart/{symbol}")

@@ -2,12 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
+  CandlestickSeries,
   ColorType,
   createChart,
   LineSeries,
   LineStyle,
   LineType,
   type AutoscaleInfo,
+  type CandlestickData,
   type IChartApi,
   type ISeriesApi,
   type LineData,
@@ -17,7 +19,7 @@ import { authFetch } from "@/lib/auth";
 import { formatPercent, formatPrice } from "@/lib/format";
 import { NewsInsightDialog } from "@/features/news/components/NewsInsightDialog";
 import { ResearchDialog } from "@/features/news/components/ResearchDialog";
-import type { MarketChartRange, MarketChartResponse, MarketScanResult } from "../types/market-dashboard";
+import type { MarketCandleResponse, MarketChartRange, MarketChartResponse, MarketScanResult } from "../types/market-dashboard";
 
 type Props = {
   token: string;
@@ -27,11 +29,14 @@ type Props = {
 
 const ranges: MarketChartRange[] = ["today", "week", "month", "year"];
 const CHART_TIME_ZONE = "Europe/Berlin";
+type ChartMode = "movement" | "candles";
 
 export function MarketChartDialog({ token, result, onClose }: Props) {
   const chartContainerRef = useRef<HTMLDivElement | null>(null);
   const [range, setRange] = useState<MarketChartRange>("today");
   const [chart, setChart] = useState<MarketChartResponse | null>(null);
+  const [candles, setCandles] = useState<MarketCandleResponse | null>(null);
+  const [chartMode, setChartMode] = useState<ChartMode>("movement");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [newsOpen, setNewsOpen] = useState(false);
@@ -43,6 +48,7 @@ export function MarketChartDialog({ token, result, onClose }: Props) {
     }
 
     setRange("today");
+    setChartMode("movement");
   }, [result?.symbol]);
 
   useEffect(() => {
@@ -57,15 +63,20 @@ export function MarketChartDialog({ token, result, onClose }: Props) {
       setLoading(true);
       setError(null);
       try {
-        const response = await authFetch(token, `/api/dashboard/chart/${encodeURIComponent(selectedResult.symbol)}?range=${range}`);
-        const payload = (await response.json()) as MarketChartResponse;
+        const path = chartMode === "candles" ? "candles" : "chart";
+        const response = await authFetch(token, `/api/dashboard/${path}/${encodeURIComponent(selectedResult.symbol)}?range=${range}`);
         if (!cancelled) {
-          setChart(payload);
+          if (chartMode === "candles") {
+            setCandles((await response.json()) as MarketCandleResponse);
+          } else {
+            setChart((await response.json()) as MarketChartResponse);
+          }
         }
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : "Could not load chart");
-          setChart(null);
+          if (chartMode === "candles") setCandles(null);
+          else setChart(null);
         }
       } finally {
         if (!cancelled) {
@@ -79,14 +90,14 @@ export function MarketChartDialog({ token, result, onClose }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [range, result?.symbol, result?.updatedAt, token]);
+  }, [chartMode, range, result?.symbol, result?.updatedAt, token]);
 
   useEffect(() => {
-    if (!result || !chart || !chartContainerRef.current) {
+    if (!result || !chartContainerRef.current || (chartMode === "movement" ? !chart : !candles)) {
       return;
     }
 
-    const chartPoints = toLineData(chart);
+    const activeTimeZone = chartMode === "candles" && candles ? candles.timeZone : CHART_TIME_ZONE;
     const chartApi = createChart(chartContainerRef.current, {
       autoSize: true,
       layout: {
@@ -105,11 +116,11 @@ export function MarketChartDialog({ token, result, onClose }: Props) {
         borderColor: "#d9e0e6",
         timeVisible: true,
         secondsVisible: false,
-        tickMarkFormatter: (time: Time) => formatChartTime(time)
+        tickMarkFormatter: (time: Time) => formatChartTime(time, activeTimeZone)
       },
       localization: {
         locale: "de-DE",
-        timeFormatter: (time: Time) => formatChartTime(time)
+        timeFormatter: (time: Time) => formatChartTime(time, activeTimeZone)
       },
       crosshair: {
         horzLine: { color: "#687783" },
@@ -117,50 +128,60 @@ export function MarketChartDialog({ token, result, onClose }: Props) {
       }
     });
 
-    const latestValue = chartPoints.at(-1)?.value ?? 0;
-    const lineColor = latestValue >= 0 ? "#147a46" : "#b42318";
-    const series = chartApi.addSeries(LineSeries, {
-      color: lineColor,
-      lineWidth: 2,
-      lineType: LineType.Curved,
-      pointMarkersVisible: false,
-      lastValueVisible: true,
-      priceLineVisible: true,
-      priceFormat: {
-        type: "custom",
-        formatter: (value: number) => formatPercent(value)
-      },
-      autoscaleInfoProvider: (original: () => AutoscaleInfo | null) => {
-        const result = original();
-        if (result === null || result.priceRange === null) {
-          return null;
+    if (chartMode === "candles" && candles) {
+      const series = chartApi.addSeries(CandlestickSeries, {
+        upColor: "#147a46",
+        downColor: "#b42318",
+        borderUpColor: "#147a46",
+        borderDownColor: "#b42318",
+        wickUpColor: "#147a46",
+        wickDownColor: "#b42318",
+        priceFormat: { type: "price", precision: 2, minMove: 0.01 }
+      }) as ISeriesApi<"Candlestick", Time>;
+      series.setData(toCandleData(candles));
+    } else if (chart) {
+      const chartPoints = toLineData(chart);
+      const latestValue = chartPoints.at(-1)?.value ?? 0;
+      const lineColor = latestValue >= 0 ? "#147a46" : "#b42318";
+      const series = chartApi.addSeries(LineSeries, {
+        color: lineColor,
+        lineWidth: 2,
+        lineType: LineType.Curved,
+        pointMarkersVisible: false,
+        lastValueVisible: true,
+        priceLineVisible: true,
+        priceFormat: {
+          type: "custom",
+          formatter: (value: number) => formatPercent(value)
+        },
+        autoscaleInfoProvider: (original: () => AutoscaleInfo | null) => {
+          const result = original();
+          if (result === null || result.priceRange === null) return null;
+          return {
+            ...result,
+            priceRange: {
+              minValue: Math.min(result.priceRange.minValue, 0),
+              maxValue: Math.max(result.priceRange.maxValue, 0)
+            }
+          };
         }
-
-        return {
-          ...result,
-          priceRange: {
-            minValue: Math.min(result.priceRange.minValue, 0),
-            maxValue: Math.max(result.priceRange.maxValue, 0)
-          }
-        };
-      }
-    }) as ISeriesApi<"Line", Time>;
-
-    series.setData(chartPoints);
-    series.createPriceLine({
-      price: 0,
-      color: "#4f5f6b",
-      lineWidth: 2,
-      lineStyle: LineStyle.Solid,
-      axisLabelVisible: true,
-      title: "0.00%"
-    });
+      }) as ISeriesApi<"Line", Time>;
+      series.setData(chartPoints);
+      series.createPriceLine({
+        price: 0,
+        color: "#4f5f6b",
+        lineWidth: 2,
+        lineStyle: LineStyle.Solid,
+        axisLabelVisible: true,
+        title: "0.00%"
+      });
+    }
     chartApi.timeScale().fitContent();
 
     return () => {
       destroyChart(chartApi);
     };
-  }, [chart, result]);
+  }, [candles, chart, chartMode, result]);
 
   if (!result) {
     return null;
@@ -168,6 +189,9 @@ export function MarketChartDialog({ token, result, onClose }: Props) {
 
   const points = chart?.points ?? [];
   const latest = points.at(-1);
+  const candlePoints = candles?.points ?? [];
+  const latestCandle = candlePoints.at(-1);
+  const activePointCount = chartMode === "candles" ? candlePoints.length : points.length;
 
   return (
     <>
@@ -177,11 +201,12 @@ export function MarketChartDialog({ token, result, onClose }: Props) {
           <div>
             <h2 id="chart-title">{result.symbol} - {result.companyName}</h2>
             <p>{result.region ?? "Market"} | {result.exchange ?? "Exchange"} | {result.currency ?? "Currency"}</p>
-            {chart ? (
+            {chartMode === "movement" && chart ? (
               <p>
                 {chartLabel(chart)} | {chartDateRange(chart)}
               </p>
             ) : null}
+            {chartMode === "candles" && candles ? <p>{candleLabel(candles)} | {chartDateRange(candles, candles.timeZone)}</p> : null}
           </div>
           <div className="chart-dialog-actions">
             <button type="button" className="secondary-button" onClick={() => setNewsOpen(true)}>News</button>
@@ -202,20 +227,32 @@ export function MarketChartDialog({ token, result, onClose }: Props) {
           <div ref={chartContainerRef} className="lightweight-chart" />
           {loading ? <div className="chart-overlay">Loading chart</div> : null}
           {!loading && error ? <div className="chart-overlay error">{error}</div> : null}
-          {!loading && !error && points.length === 0 ? <div className="chart-overlay">No saved data for this range</div> : null}
+          {!loading && !error && activePointCount === 0 ? <div className="chart-overlay">No data for this range</div> : null}
         </div>
 
         <div className="chart-stats">
-          <span>Price: {latest ? formatPrice(latest.price) : formatPrice(result.currentPrice)}</span>
-          <span>
+          <span>Price: {chartMode === "candles" && latestCandle ? formatPrice(latestCandle.close) : latest ? formatPrice(latest.price) : formatPrice(result.currentPrice)}</span>
+          {chartMode === "candles" && latestCandle ? (
+            <>
+              <span>Open: {formatPrice(latestCandle.open)}</span>
+              <span>High: {formatPrice(latestCandle.high)}</span>
+              <span>Low: {formatPrice(latestCandle.low)}</span>
+            </>
+          ) : <><span>
             Day:{" "}
             <span className={toneClass(latest ? latest.percentChange : result.currentPercent)}>
               {latest ? formatPercent(latest.percentChange) : formatPercent(result.currentPercent)}
             </span>
           </span>
           <span>Range: {latest ? `${formatPrice(latest.low)} - ${formatPrice(latest.high)}` : `${formatPrice(result.low)} - ${formatPrice(result.high)}`}</span>
-          <span>Previous close: {latest ? formatPrice(latest.previousClose) : formatPrice(result.previousClose)}</span>
-          {chart ? <span>Dates: {chartDateRange(chart)}</span> : null}
+          <span>Previous close: {latest ? formatPrice(latest.previousClose) : formatPrice(result.previousClose)}</span></>}
+          {chartMode === "movement" && chart ? <span>Dates: {chartDateRange(chart)}</span> : null}
+          {chartMode === "candles" && candles ? <span>Dates: {chartDateRange(candles, candles.timeZone)} | Interval: {candles.interval}</span> : null}
+        </div>
+        <div className="chart-mode-actions">
+          <button type="button" className="secondary-button" onClick={() => setChartMode(chartMode === "movement" ? "candles" : "movement")}>
+            {chartMode === "movement" ? "Show Candles" : "Show Movement"}
+          </button>
         </div>
       </section>
     </div>
@@ -241,32 +278,45 @@ function chartLabel(chart: MarketChartResponse): string {
   return "Showing requested range";
 }
 
-function chartDateRange(chart: MarketChartResponse): string {
+function candleLabel(candles: MarketCandleResponse): string {
+  return candles.range === "today" && candles.fallback ? "Last active trading day candles" : "Provider OHLC candles";
+}
+
+function chartDateRange(chart: Pick<MarketChartResponse, "actualFrom" | "actualTo">, timeZone = CHART_TIME_ZONE): string {
   if (!chart.actualFrom || !chart.actualTo) {
     return "No saved dates";
   }
 
-  const from = formatChartDate(chart.actualFrom);
-  const to = formatChartDate(chart.actualTo);
+  const from = formatChartDate(chart.actualFrom, timeZone);
+  const to = formatChartDate(chart.actualTo, timeZone);
   return from === to ? from : `${from} - ${to}`;
 }
 
-function formatChartDate(value: string): string {
+function toCandleData(candles: MarketCandleResponse): CandlestickData<Time>[] {
+  const pointsByTime = new Map<number, CandlestickData<Time>>();
+  candles.points.forEach((point) => {
+    const time = Math.floor(new Date(point.time).getTime() / 1000);
+    pointsByTime.set(time, { time: time as Time, open: point.open, high: point.high, low: point.low, close: point.close });
+  });
+  return Array.from(pointsByTime.values()).sort((left, right) => Number(left.time) - Number(right.time));
+}
+
+function formatChartDate(value: string, timeZone = CHART_TIME_ZONE): string {
   return new Intl.DateTimeFormat("en-US", {
     month: "short",
     day: "2-digit",
     year: "numeric",
-    timeZone: CHART_TIME_ZONE
+    timeZone
   }).format(new Date(value));
 }
 
-function formatChartTime(value: Time): string {
+function formatChartTime(value: Time, timeZone = CHART_TIME_ZONE): string {
   if (typeof value !== "number") {
     return value.toString();
   }
 
   return new Intl.DateTimeFormat("de-DE", {
-    timeZone: CHART_TIME_ZONE,
+    timeZone,
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",

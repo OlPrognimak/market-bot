@@ -1722,6 +1722,12 @@ tbody tr:hover {
   font-variant-numeric: tabular-nums;
 }
 
+.chart-mode-actions {
+  display: flex;
+  justify-content: center;
+  padding: 0 18px 18px;
+}
+
 @media (max-width: 900px) {
   .dashboard {
     padding: 16px;
