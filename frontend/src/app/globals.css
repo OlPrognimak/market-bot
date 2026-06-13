@@ -644,6 +644,92 @@ button:disabled {
   border: 1px solid var(--border);
 }
 
+.success-banner {
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  border: 1px solid #b9e2ca;
+  border-radius: 8px;
+  background: var(--positive-bg);
+  color: var(--positive);
+}
+
+.portfolio-upload-panel {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) minmax(240px, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.portfolio-upload-panel p {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.portfolio-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.portfolio-currency-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 22px;
+}
+
+.portfolio-currency-summary .summary-panel strong {
+  font-size: 20px;
+}
+
+.portfolio-table {
+  width: 100%;
+  min-width: 960px;
+  border-collapse: collapse;
+}
+
+.portfolio-table th,
+.portfolio-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.portfolio-table th {
+  background: var(--surface-muted);
+  color: var(--muted);
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.positions-table {
+  min-width: 1500px;
+}
+
+.warning-row {
+  background: #fff5db;
+}
+
+.dashboard > h2 {
+  margin: 24px 0 10px;
+}
+
+@media (max-width: 900px) {
+  .portfolio-upload-panel,
+  .portfolio-summary-grid,
+  .portfolio-currency-summary {
+    grid-template-columns: 1fr;
+  }
+}
+
 .table-frame {
   overflow: auto;
   border: 1px solid var(--border);
@@ -1021,12 +1107,39 @@ tbody tr:hover {
 
 .chart-dialog {
   width: min(980px, 100%);
+  height: min(760px, calc(100vh - 36px));
+  min-width: min(680px, calc(100vw - 36px));
+  min-height: min(560px, calc(100vh - 36px));
+  max-width: calc(100vw - 36px);
   max-height: calc(100vh - 36px);
-  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  resize: both;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface);
   box-shadow: 0 24px 80px rgba(23, 33, 43, 0.28);
+}
+
+.chart-dialog.maximized {
+  width: calc(100vw - 36px);
+  height: calc(100vh - 36px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  resize: none;
+}
+
+.chart-dialog .chart-panel {
+  min-height: 0;
+  flex: 1;
+}
+
+.chart-dialog .chart-panel canvas,
+.chart-dialog .lightweight-chart {
+  height: 100%;
+  min-height: 260px;
 }
 
 .chart-dialog-header {
@@ -1690,6 +1803,7 @@ tbody tr:hover {
 
 .chart-panel {
   position: relative;
+  min-height: 260px;
   padding: 16px 18px 10px;
 }
 
@@ -1697,7 +1811,7 @@ tbody tr:hover {
 .lightweight-chart {
   display: block;
   width: 100%;
-  height: 420px;
+  height: 100%;
 }
 
 .chart-overlay {
@@ -1725,7 +1839,50 @@ tbody tr:hover {
 .chart-mode-actions {
   display: flex;
   justify-content: center;
+  gap: 8px;
   padding: 0 18px 18px;
+}
+
+.portfolio-marker-details,
+.portfolio-marker-hint,
+.portfolio-marker-error {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin: 0 18px 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--neutral);
+  border-radius: 6px;
+  background: var(--surface-muted);
+  color: var(--muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.portfolio-marker-details strong {
+  color: var(--text);
+}
+
+.portfolio-marker-details.buy {
+  border-left-color: #2563eb;
+  background: #eff6ff;
+}
+
+.portfolio-marker-details.sell {
+  border-left-color: #f59e0b;
+  background: #fffbeb;
+}
+
+.portfolio-marker-hint {
+  justify-content: center;
+}
+
+.portfolio-marker-error {
+  border-left-color: var(--negative);
+  background: var(--negative-bg);
+  color: var(--negative);
 }
 
 @media (max-width: 900px) {
@@ -1754,6 +1911,20 @@ tbody tr:hover {
   .chart-panel canvas,
   .lightweight-chart {
     height: 320px;
+  }
+
+  .chart-dialog.maximized {
+    width: calc(100vw - 20px);
+    height: calc(100vh - 20px);
+  }
+
+  .chart-dialog,
+  .chart-dialog.maximized {
+    min-width: 0;
+    min-height: 0;
+    max-width: calc(100vw - 20px);
+    max-height: calc(100vh - 20px);
+    resize: none;
   }
 }
 

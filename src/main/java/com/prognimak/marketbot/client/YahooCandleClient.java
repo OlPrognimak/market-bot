@@ -150,7 +150,7 @@ public class YahooCandleClient {
             return switch (range) {
                 case TODAY, YESTERDAY -> new CandleRequest("5d", "5m");
                 case WEEK -> new CandleRequest("5d", "15m");
-                case MONTH -> new CandleRequest("1mo", "1d");
+                case MONTH -> new CandleRequest("1mo", "1h");
                 case YEAR -> new CandleRequest("1y", "1d");
             };
         }

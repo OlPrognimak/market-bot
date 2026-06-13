@@ -10,10 +10,12 @@ import { LoginPage } from "@/features/users/components/LoginPage";
 import { SignUpPage } from "@/features/users/components/SignUpPage";
 import { UserManagementPage } from "@/features/users/components/UserManagementPage";
 import { UserSettingsPage } from "@/features/users/components/UserSettingsPage";
+import { AnalyzePage } from "@/features/portfolio/components/AnalyzePage";
+import { ImportDataPage } from "@/features/portfolio/components/ImportDataPage";
 import { clearSession, fetchCurrentUser, loadStoredSession, storeSession } from "@/lib/auth";
 import type { AuthSession } from "@/features/users/types";
 
-type AppView = "dashboard" | "crypto" | "futures" | "users" | "settings" | "catalog";
+type AppView = "dashboard" | "crypto" | "futures" | "import" | "analyze" | "users" | "settings" | "catalog";
 
 export default function Home() {
   const [session, setSession] = useState<AuthSession | null>(null);
@@ -89,6 +91,10 @@ export default function Home() {
         />
       ) : view === "futures" ? (
         <FuturesDashboardPage token={session.token} currentUser={session.user} />
+      ) : view === "import" ? (
+        <ImportDataPage token={session.token} />
+      ) : view === "analyze" ? (
+        <AnalyzePage token={session.token} />
       ) : view === "users" ? (
         <main className="dashboard">
           <header className="dashboard-header">
@@ -148,6 +154,8 @@ function AppShell({
     { view: "dashboard", label: "Shares" },
     { view: "crypto", label: "Crypto" },
     { view: "futures", label: "Futures" },
+    { view: "import", label: "Import data" },
+    { view: "analyze", label: "Analyze" },
     { view: "settings", label: "Settings" },
     { view: "users", label: session.user.role === "ADMIN" ? "Users" : "Account" },
     ...(session.user.role === "ADMIN" ? [{ view: "catalog" as AppView, label: "Catalog" }] : [])
