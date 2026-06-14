@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.Data;
 
 @Entity
+@Table(indexes = @Index(name = "idx_quote_entity_symbol_created", columnList = "symbol,created"))
 @Data
 public class QuoteEntity extends AbstractEntity {
     @Id

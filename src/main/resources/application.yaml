@@ -82,6 +82,33 @@ market-bot:
     # Delay between transient quote provider retries, in milliseconds.
     quote-fetch-retry-delay-ms: ${MARKET_BOT_QUOTE_FETCH_RETRY_DELAY_MS:1000}
 
+  trend:
+    adaptive-enabled: ${MARKET_BOT_TREND_ADAPTIVE_ENABLED:true}
+    recalibrate-on-startup: ${MARKET_BOT_TREND_RECALIBRATE_ON_STARTUP:true}
+    recalibration-cron: ${MARKET_BOT_TREND_RECALIBRATION_CRON:0 15 2 * * *}
+    recalibration-zone: ${MARKET_BOT_TREND_RECALIBRATION_ZONE:Europe/Berlin}
+    observation-window: ${MARKET_BOT_TREND_OBSERVATION_WINDOW:15}
+    short-window: ${MARKET_BOT_TREND_SHORT_WINDOW:5}
+    evaluation-horizon: ${MARKET_BOT_TREND_EVALUATION_HORIZON:5}
+    lookback-days: ${MARKET_BOT_TREND_LOOKBACK_DAYS:30}
+    minimum-trading-days: ${MARKET_BOT_TREND_MINIMUM_TRADING_DAYS:10}
+    minimum-windows: ${MARKET_BOT_TREND_MINIMUM_WINDOWS:100}
+    default-long-weight: ${MARKET_BOT_TREND_DEFAULT_LONG_WEIGHT:0.35}
+    default-short-weight: ${MARKET_BOT_TREND_DEFAULT_SHORT_WEIGHT:0.65}
+    default-minimum-score-percent: ${MARKET_BOT_TREND_DEFAULT_MINIMUM_SCORE_PERCENT:0.15}
+    minimum-short-weight: ${MARKET_BOT_TREND_MINIMUM_SHORT_WEIGHT:0.25}
+    maximum-short-weight: ${MARKET_BOT_TREND_MAXIMUM_SHORT_WEIGHT:0.80}
+    minimum-confidence: ${MARKET_BOT_TREND_MINIMUM_CONFIDENCE:0.55}
+    threshold-multiplier: ${MARKET_BOT_TREND_THRESHOLD_MULTIPLIER:2.0}
+    minimum-adaptive-score-percent: ${MARKET_BOT_TREND_MINIMUM_ADAPTIVE_SCORE_PERCENT:0.05}
+    maximum-adaptive-score-percent: ${MARKET_BOT_TREND_MAXIMUM_ADAPTIVE_SCORE_PERCENT:1.0}
+    maximum-profile-age-days: ${MARKET_BOT_TREND_MAXIMUM_PROFILE_AGE_DAYS:7}
+    lower-range-position: ${MARKET_BOT_TREND_LOWER_RANGE_POSITION:0.40}
+    upper-range-position: ${MARKET_BOT_TREND_UPPER_RANGE_POSITION:0.60}
+    previous-close-tolerance: ${MARKET_BOT_TREND_PREVIOUS_CLOSE_TOLERANCE:0.01}
+    profile-quality-improvement: ${MARKET_BOT_TREND_PROFILE_QUALITY_IMPROVEMENT:0.02}
+    maximum-weight-change: ${MARKET_BOT_TREND_MAXIMUM_WEIGHT_CHANGE:0.10}
+
   shares:
     watchlist-file: ${MARKET_BOT_WATCHLIST_FILE:classpath:/watchlist.yaml}
 

@@ -7,6 +7,7 @@ import com.prognimak.marketbot.config.AppProperties;
 import com.prognimak.marketbot.dashboard.model.MarketDirection;
 import com.prognimak.marketbot.dashboard.model.MarketScanResult;
 import com.prognimak.marketbot.dashboard.service.MarketDashboardService;
+import com.prognimak.marketbot.dashboard.service.MarketTrendService;
 import com.prognimak.marketbot.entity.QuoteEntity;
 import com.prognimak.marketbot.mapper.QuoteMapper;
 import com.prognimak.marketbot.model.Quote;
@@ -47,6 +48,7 @@ public class MarketScannerService {
     private final AppProperties properties;
     private final QuoteMapper quoteMapper;
     private final MarketDashboardService marketDashboardService;
+    private final MarketTrendService marketTrendService;
     private final WatchlistService watchlistService;
     private final UserPropertyService userPropertyService;
     private final AsyncNotificationService notificationService;
@@ -281,6 +283,8 @@ public class MarketScannerService {
                 quote.open(),
                 quote.previousClose(),
                 direction(rollingDelta, delta),
+                marketTrendService.detect(quote),
+                marketTrendService.profileInfo(quote.symbol()),
                 alert,
                 Instant.now(),
                 messageText

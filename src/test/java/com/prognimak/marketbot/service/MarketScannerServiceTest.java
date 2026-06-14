@@ -5,6 +5,7 @@ import com.prognimak.marketbot.client.TelegramClient;
 import com.prognimak.marketbot.client.YahooFinanceClient;
 import com.prognimak.marketbot.config.AppProperties;
 import com.prognimak.marketbot.dashboard.service.MarketDashboardService;
+import com.prognimak.marketbot.dashboard.service.MarketTrendService;
 import com.prognimak.marketbot.entity.AppUserEntity;
 import com.prognimak.marketbot.entity.AppUserPropertyEntity;
 import com.prognimak.marketbot.entity.QuoteEntity;
@@ -63,6 +64,8 @@ class MarketScannerServiceTest {
     @Mock
     private MarketDashboardService marketDashboardService;
     @Mock
+    private MarketTrendService marketTrendService;
+    @Mock
     private WatchlistService watchlistService;
     @Mock
     private UserPropertyService userPropertyService;
@@ -83,6 +86,7 @@ class MarketScannerServiceTest {
                 properties(0.8, Map.of("AAPL", "Apple")),
                 quoteMapper,
                 marketDashboardService,
+                marketTrendService,
                 watchlistService,
                 userPropertyService,
                 notificationService,
@@ -308,6 +312,7 @@ class MarketScannerServiceTest {
                 properties(0.8, orderedWatchlist()),
                 quoteMapper,
                 marketDashboardService,
+                marketTrendService,
                 watchlistService,
                 userPropertyService,
                 notificationService,
@@ -341,6 +346,7 @@ class MarketScannerServiceTest {
                 properties(0.8, orderedWatchlist()),
                 quoteMapper,
                 marketDashboardService,
+                marketTrendService,
                 watchlistService,
                 userPropertyService,
                 notificationService,

@@ -1023,6 +1023,44 @@ tbody tr:hover {
   background: #f7fafc;
 }
 
+.market-results-table tbody tr.row-trend-up {
+  background: #edf9f2;
+}
+
+.market-results-table tbody tr.row-trend-up:hover {
+  background: #e2f5ea;
+}
+
+.market-results-table tbody tr.row-trend-down {
+  background: #fff1ef;
+}
+
+.market-results-table tbody tr.row-trend-down:hover {
+  background: #ffe7e3;
+}
+
+.trend-badge {
+  display: inline-flex;
+  min-width: 64px;
+  justify-content: center;
+  padding: 3px 8px;
+  border-radius: 12px;
+  background: var(--surface-muted);
+  color: var(--neutral);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.trend-badge.trend-up {
+  background: #d6f0e0;
+  color: var(--positive);
+}
+
+.trend-badge.trend-down {
+  background: #fbdcd8;
+  color: var(--negative);
+}
+
 .row-alert {
   box-shadow: inset 3px 0 0 var(--accent);
 }

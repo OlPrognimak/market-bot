@@ -1,5 +1,13 @@
 export type MarketDirection = "UP" | "DOWN" | "NEUTRAL";
 
+export type TrendProfileInfo = {
+  name: string;
+  longWeight: number;
+  shortWeight: number;
+  minimumScorePercent: number;
+  confidence: number;
+};
+
 export type ScanTriggerMode = "BACKEND_SCHEDULED" | "FRONTEND_TRIGGERED" | "BOTH";
 
 export type MarketScanResult = {
@@ -21,6 +29,8 @@ export type MarketScanResult = {
   open: number;
   previousClose: number;
   direction: MarketDirection;
+  trend: MarketDirection;
+  trendProfile?: TrendProfileInfo | null;
   alert: boolean;
   updatedAt: string;
   messageText?: string | null;

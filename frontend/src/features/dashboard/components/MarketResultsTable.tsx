@@ -23,6 +23,7 @@ export function MarketResultsTable({ results, onOpenChart }: Props) {
             <th>Current</th>
             <th>Delta</th>
             <th>Rolling</th>
+            <th>Trend</th>
             <th>Price</th>
             <th>Range</th>
             <th>Updated</th>
@@ -30,7 +31,7 @@ export function MarketResultsTable({ results, onOpenChart }: Props) {
         </thead>
         <tbody>
           {results.map((result) => (
-            <tr key={result.symbol} className={`row-${result.direction.toLowerCase()} ${result.alert ? "row-alert" : ""}`}>
+            <tr key={result.symbol} className={`row-trend-${result.trend.toLowerCase()} ${result.alert ? "row-alert" : ""}`}>
               <td>
                 <button type="button" className="symbol-link" onClick={() => onOpenChart(result)} aria-label={`Open chart for ${result.symbol}`}>
                   {result.symbol}
@@ -47,6 +48,11 @@ export function MarketResultsTable({ results, onOpenChart }: Props) {
               <td className={toneClass(result.rollingDelta)}>
                 {formatPercent(result.rollingDelta)}
                 <span className="window-label">{result.rollingWindowSize}</span>
+              </td>
+              <td>
+                <span className={`trend-badge trend-${result.trend.toLowerCase()}`} title={trendProfileText(result)}>
+                  {result.trend}
+                </span>
               </td>
               <td>{formatPrice(result.currentPrice)}</td>
               <td>
@@ -73,6 +79,18 @@ function metadataText(result: MarketScanResult): string {
     `Exchange: ${result.exchange ?? "-"}`,
     `Currency: ${result.currency ?? "-"}`,
     `Priority: ${result.priority ?? "NORMAL"}`
+  ].join("\n");
+}
+
+function trendProfileText(result: MarketScanResult): string {
+  const profile = result.trendProfile;
+  if (!profile) return "Trend profile unavailable";
+  return [
+    `Profile: ${profile.name}`,
+    `Long weight: ${(profile.longWeight * 100).toFixed(0)}%`,
+    `Short weight: ${(profile.shortWeight * 100).toFixed(0)}%`,
+    `Minimum score: ${profile.minimumScorePercent.toFixed(2)}%`,
+    `Confidence: ${(profile.confidence * 100).toFixed(0)}%`
   ].join("\n");
 }
 

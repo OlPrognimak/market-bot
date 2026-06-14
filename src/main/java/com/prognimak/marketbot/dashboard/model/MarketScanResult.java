@@ -21,6 +21,8 @@ public record MarketScanResult(
         double open,
         double previousClose,
         MarketDirection direction,
+        MarketDirection trend,
+        TrendProfileInfo trendProfile,
         boolean alert,
         Instant updatedAt,
         String messageText
