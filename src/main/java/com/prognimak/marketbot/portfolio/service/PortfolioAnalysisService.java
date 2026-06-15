@@ -1,6 +1,5 @@
 package com.prognimak.marketbot.portfolio.service;
 
-import com.prognimak.marketbot.entity.QuoteEntity;
 import com.prognimak.marketbot.portfolio.entity.PortfolioTransactionEntity;
 import com.prognimak.marketbot.portfolio.model.PortfolioAnalysisResponse;
 import com.prognimak.marketbot.portfolio.model.PortfolioProviderType;
@@ -8,7 +7,6 @@ import com.prognimak.marketbot.portfolio.model.PortfolioMarkerResponse;
 import com.prognimak.marketbot.portfolio.repository.PortfolioIncomeRepository;
 import com.prognimak.marketbot.portfolio.repository.PortfolioRealizedLotRepository;
 import com.prognimak.marketbot.portfolio.repository.PortfolioTransactionRepository;
-import com.prognimak.marketbot.repository.QuoteRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,26 +15,16 @@ import java.math.BigDecimal;
 import java.math.MathContext;
 import java.math.RoundingMode;
 import java.util.*;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class PortfolioAnalysisService {
     private static final BigDecimal EPSILON = new BigDecimal("0.00000001");
     private static final MathContext MATH_CONTEXT = new MathContext(20, RoundingMode.HALF_UP);
-    private static final Map<String, List<String>> REVOLUT_TICKER_ALIASES = Map.of(
-            "ASML", List.of("ASME"),
-            "STM", List.of("SGM"),
-            "IRBT", List.of("IRBTQ"),
-            "AIR", List.of("AIR1"),
-            "ENR", List.of("ENR1")
-    );
-
     private final PortfolioTransactionRepository transactionRepository;
     private final PortfolioRealizedLotRepository realizedLotRepository;
     private final PortfolioIncomeRepository incomeRepository;
-    private final QuoteRepository quoteRepository;
+    private final PortfolioMarketPriceService marketPriceService;
 
     @Transactional(readOnly = true)
     public PortfolioAnalysisResponse analyze(Long userId) {
@@ -65,16 +53,13 @@ public class PortfolioAnalysisService {
             }
         }
 
-        Map<String, QuoteEntity> quotes = states.keySet().stream()
-                .map(PositionKey::ticker)
-                .distinct()
-                .map(symbol -> quoteRepository.findFirstBySymbolOrderByCreatedDesc(symbol).orElse(null))
-                .filter(Objects::nonNull)
-                .collect(Collectors.toMap(QuoteEntity::getSymbol, Function.identity(), (left, right) -> left));
-
         List<PortfolioAnalysisResponse.Position> positions = states.entrySet().stream()
                 .filter(entry -> entry.getValue().quantity.compareTo(EPSILON) > 0)
-                .map(entry -> toPosition(entry.getKey(), entry.getValue(), quotes.get(entry.getKey().ticker())))
+                .map(entry -> toPosition(
+                        entry.getKey(),
+                        entry.getValue(),
+                        marketPriceService.resolve(entry.getKey().ticker(), entry.getKey().currency())
+                ))
                 .sorted(Comparator.comparing(PortfolioAnalysisResponse.Position::ticker))
                 .toList();
 
@@ -112,15 +97,9 @@ public class PortfolioAnalysisService {
     @Transactional(readOnly = true)
     public PortfolioMarkerResponse markers(Long userId, String ticker) {
         String normalizedTicker = ticker.toUpperCase(Locale.ROOT);
-        String baseTicker = normalizedTicker.contains(".")
-                ? normalizedTicker.substring(0, normalizedTicker.indexOf('.'))
-                : normalizedTicker;
-        LinkedHashSet<String> candidates = new LinkedHashSet<>();
-        candidates.add(normalizedTicker);
-        candidates.add(baseTicker);
-        candidates.addAll(REVOLUT_TICKER_ALIASES.getOrDefault(baseTicker, List.of()));
+        List<String> candidates = PortfolioTickerAliases.revolutCandidates(normalizedTicker);
         List<PortfolioMarkerResponse.Marker> markers = transactionRepository
-                .findByUserIdAndTickerInOrderByEventTimeAsc(userId, List.copyOf(candidates)).stream()
+                .findByUserIdAndTickerInOrderByEventTimeAsc(userId, candidates).stream()
                 .filter(item -> item.getPricePerShare() != null)
                 .filter(item -> item.getTransactionType().startsWith("BUY")
                         || item.getTransactionType().startsWith("SELL"))
@@ -136,9 +115,8 @@ public class PortfolioAnalysisService {
         return new PortfolioMarkerResponse(normalizedTicker, PortfolioProviderType.REVOLUT, markers);
     }
 
-    private PortfolioAnalysisResponse.Position toPosition(PositionKey key, PositionState state, QuoteEntity quote) {
+    private PortfolioAnalysisResponse.Position toPosition(PositionKey key, PositionState state, BigDecimal currentPrice) {
         BigDecimal averageCost = divide(state.costBasis, state.quantity);
-        BigDecimal currentPrice = quote == null ? null : BigDecimal.valueOf(quote.getCurrent());
         BigDecimal marketValue = currentPrice == null ? null : state.quantity.multiply(currentPrice);
         BigDecimal unrealized = marketValue == null ? null : marketValue.subtract(state.costBasis);
         BigDecimal percent = unrealized == null || state.costBasis.signum() == 0

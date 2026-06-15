@@ -15,6 +15,12 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * Classifies the current short-term direction of a share from recent compatible scanner quotes.
+ *
+ * <p>The service uses a valid share-specific adaptive profile when available and otherwise uses
+ * the configured global fallback parameters.</p>
+ */
 @Service
 @RequiredArgsConstructor
 public class MarketTrendService {
@@ -23,6 +29,12 @@ public class MarketTrendService {
     private final TrendProperties properties;
     private final StockTrendProfileService profileService;
 
+    /**
+     * Detects the current share trend using persisted quotes and the current provider quote.
+     *
+     * @param currentQuote latest provider quote
+     * @return confirmed upward or downward trend, or neutral when the evidence is insufficient
+     */
     public MarketDirection detect(Quote currentQuote) {
         TrendParameters parameters = profileService.parametersFor(currentQuote.symbol());
         List<QuoteEntity> newestFirst = quoteRepository.findBySymbolOrderByCreatedDesc(
@@ -51,6 +63,12 @@ public class MarketTrendService {
         return detect(prices, parameters, properties.effectiveShortWindow());
     }
 
+    /**
+     * Returns the effective profile currently used by the scanner for the supplied symbol.
+     *
+     * @param symbol provider share symbol
+     * @return adaptive profile details or the global fallback profile details
+     */
     public TrendProfileInfo profileInfo(String symbol) {
         TrendParameters parameters = profileService.parametersFor(symbol);
         return new TrendProfileInfo(

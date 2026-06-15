@@ -15,6 +15,12 @@ import lombok.Setter;
 
 import java.time.Instant;
 
+/**
+ * Persists the current effective adaptive trend profile and calibration metrics for one stock.
+ *
+ * <p>There is at most one profile row per stock catalog entry. A {@code DEFAULT} row records that
+ * fallback parameters are active while insufficient scanner history prevents adaptive calibration.</p>
+ */
 @Entity
 @Table(name = "stock_trend_profile", uniqueConstraints = @UniqueConstraint(
         name = "uk_stock_trend_profile_stock", columnNames = "stock_id"

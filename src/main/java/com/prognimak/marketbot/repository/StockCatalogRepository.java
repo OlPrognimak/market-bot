@@ -11,5 +11,7 @@ public interface StockCatalogRepository extends JpaRepository<StockCatalogEntity
 
     Optional<StockCatalogEntity> findBySymbolIgnoreCase(String symbol);
 
+    List<StockCatalogEntity> findBySymbolStartingWithIgnoreCase(String symbolPrefix);
+
     boolean existsBySymbolIgnoreCase(String symbol);
 }
