@@ -26,25 +26,20 @@ export type PortfolioPosition = {
   reconciliationStatus: string;
 };
 
-export type PortfolioTransaction = {
-  eventTime: string;
-  ticker: string | null;
-  transactionType: string;
-  quantity: number | null;
-  pricePerShare: number | null;
-  totalAmount: number;
-  currency: string;
-};
-
 export type PortfolioAnalysis = {
   providerType: PortfolioProviderType;
   transactionCount: number;
   realizedLotCount: number;
   incomeCount: number;
   positions: PortfolioPosition[];
+  periodFrom?: string | null;
+  periodTo?: string | null;
+  selectedTicker?: string | null;
+  availableTickers: string[];
+  realizedProfitByCurrency: Record<string, number>;
+  realizedLossByCurrency: Record<string, number>;
   realizedPnlByCurrency: Record<string, number>;
   incomeByCurrency: Record<string, number>;
-  recentTransactions: PortfolioTransaction[];
 };
 
 export type PortfolioMarkerResponse = {

@@ -28,8 +28,16 @@ export async function fetchPortfolioImports(token: string): Promise<PortfolioImp
   return response.json() as Promise<PortfolioImport[]>;
 }
 
-export async function fetchPortfolioAnalysis(token: string): Promise<PortfolioAnalysis> {
-  const response = await authFetch(token, "/api/portfolio/analysis");
+export async function fetchPortfolioAnalysis(
+  token: string,
+  filters: { from?: string; to?: string; ticker?: string } = {}
+): Promise<PortfolioAnalysis> {
+  const params = new URLSearchParams();
+  if (filters.from) params.set("from", filters.from);
+  if (filters.to) params.set("to", filters.to);
+  if (filters.ticker) params.set("ticker", filters.ticker);
+  const query = params.toString();
+  const response = await authFetch(token, `/api/portfolio/analysis${query ? `?${query}` : ""}`);
   return response.json() as Promise<PortfolioAnalysis>;
 }
 

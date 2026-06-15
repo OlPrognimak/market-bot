@@ -6,10 +6,12 @@ import com.prognimak.marketbot.portfolio.service.PortfolioImportService;
 import com.prognimak.marketbot.security.AppUserPrincipal;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.time.LocalDate;
 
 @RestController
 @RequestMapping("/api/portfolio")
@@ -33,8 +35,13 @@ public class PortfolioController {
     }
 
     @GetMapping("/analysis")
-    public PortfolioAnalysisResponse analysis(@AuthenticationPrincipal AppUserPrincipal principal) {
-        return analysisService.analyze(principal.user().getId());
+    public PortfolioAnalysisResponse analysis(
+            @AuthenticationPrincipal AppUserPrincipal principal,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) String ticker
+    ) {
+        return analysisService.analyze(principal.user().getId(), from, to, ticker);
     }
 
     @GetMapping("/markers/{ticker}")

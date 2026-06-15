@@ -1,5 +1,7 @@
 package com.prognimak.marketbot.portfolio.service;
 
+import com.prognimak.marketbot.portfolio.entity.PortfolioIncomeEntity;
+import com.prognimak.marketbot.portfolio.entity.PortfolioRealizedLotEntity;
 import com.prognimak.marketbot.portfolio.entity.PortfolioTransactionEntity;
 import com.prognimak.marketbot.portfolio.model.PortfolioAnalysisResponse;
 import com.prognimak.marketbot.portfolio.model.PortfolioProviderType;
@@ -8,12 +10,16 @@ import com.prognimak.marketbot.portfolio.repository.PortfolioIncomeRepository;
 import com.prognimak.marketbot.portfolio.repository.PortfolioRealizedLotRepository;
 import com.prognimak.marketbot.portfolio.repository.PortfolioTransactionRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.math.MathContext;
 import java.math.RoundingMode;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.*;
 
 @Service
@@ -28,6 +34,13 @@ public class PortfolioAnalysisService {
 
     @Transactional(readOnly = true)
     public PortfolioAnalysisResponse analyze(Long userId) {
+        return analyze(userId, null, null, null);
+    }
+
+    @Transactional(readOnly = true)
+    public PortfolioAnalysisResponse analyze(Long userId, LocalDate from, LocalDate to, String ticker) {
+        validatePeriod(from, to);
+        String selectedTicker = normalizeTicker(ticker);
         List<PortfolioTransactionEntity> transactions = transactionRepository.findByUserIdOrderByEventTimeAsc(userId);
         Map<PositionKey, PositionState> states = new LinkedHashMap<>();
         for (PortfolioTransactionEntity transaction : transactions) {
@@ -55,6 +68,7 @@ public class PortfolioAnalysisService {
 
         List<PortfolioAnalysisResponse.Position> positions = states.entrySet().stream()
                 .filter(entry -> entry.getValue().quantity.compareTo(EPSILON) > 0)
+                .filter(entry -> selectedTicker == null || entry.getKey().ticker().equalsIgnoreCase(selectedTicker))
                 .map(entry -> toPosition(
                         entry.getKey(),
                         entry.getValue(),
@@ -63,34 +77,50 @@ public class PortfolioAnalysisService {
                 .sorted(Comparator.comparing(PortfolioAnalysisResponse.Position::ticker))
                 .toList();
 
-        var lots = realizedLotRepository.findByUserId(userId);
-        var incomes = incomeRepository.findByUserId(userId);
+        var allLots = realizedLotRepository.findByUserId(userId);
+        var allIncomes = incomeRepository.findByUserId(userId);
+        var lots = allLots.stream()
+                .filter(lot -> inside(lot.getSoldDate(), from, to))
+                .filter(lot -> selectedTicker == null || lot.getSymbol().equalsIgnoreCase(selectedTicker))
+                .toList();
+        var incomes = allIncomes.stream()
+                .filter(incomeItem -> inside(incomeItem.getIncomeDate(), from, to))
+                .filter(incomeItem -> selectedTicker == null || incomeItem.getSymbol().equalsIgnoreCase(selectedTicker))
+                .toList();
+        Map<String, BigDecimal> profits = new TreeMap<>();
+        Map<String, BigDecimal> losses = new TreeMap<>();
         Map<String, BigDecimal> realized = new TreeMap<>();
-        lots.forEach(lot -> realized.merge(lot.getCurrency(), lot.getGrossPnl(), BigDecimal::add));
+        lots.forEach(lot -> {
+            realized.merge(lot.getCurrency(), lot.getGrossPnl(), BigDecimal::add);
+            if (lot.getGrossPnl().signum() >= 0) {
+                profits.merge(lot.getCurrency(), lot.getGrossPnl(), BigDecimal::add);
+            } else {
+                losses.merge(lot.getCurrency(), lot.getGrossPnl(), BigDecimal::add);
+            }
+        });
         Map<String, BigDecimal> income = new TreeMap<>();
         incomes.forEach(item -> income.merge(item.getCurrency(), item.getNetAmount(), BigDecimal::add));
-
-        List<PortfolioAnalysisResponse.Transaction> recent = transactionRepository
-                .findTop100ByUserIdOrderByEventTimeDesc(userId).stream()
-                .map(item -> new PortfolioAnalysisResponse.Transaction(
-                        item.getEventTime(),
-                        item.getTicker(),
-                        item.getTransactionType(),
-                        item.getQuantity(),
-                        item.getPricePerShare(),
-                        item.getTotalAmount(),
-                        item.getCurrency()))
-                .toList();
+        List<String> availableTickers = availableTickers(transactions, allLots, allIncomes);
+        long filteredTransactionCount = transactions.stream()
+                .filter(transaction -> inside(transaction.getEventTime().atZone(ZoneId.systemDefault()).toLocalDate(), from, to))
+                .filter(transaction -> selectedTicker == null
+                        || selectedTicker.equalsIgnoreCase(transaction.getTicker()))
+                .count();
 
         return new PortfolioAnalysisResponse(
                 PortfolioProviderType.REVOLUT,
-                transactions.size(),
+                Math.toIntExact(filteredTransactionCount),
                 lots.size(),
                 incomes.size(),
                 positions,
+                from,
+                to,
+                selectedTicker,
+                availableTickers,
+                profits,
+                losses,
                 realized,
-                income,
-                recent
+                income
         );
     }
 
@@ -140,6 +170,33 @@ public class PortfolioAnalysisService {
         return divisor == null || divisor.abs().compareTo(EPSILON) <= 0
                 ? BigDecimal.ZERO
                 : value.divide(divisor, MATH_CONTEXT);
+    }
+
+    private List<String> availableTickers(
+            List<PortfolioTransactionEntity> transactions,
+            List<PortfolioRealizedLotEntity> lots,
+            List<PortfolioIncomeEntity> incomes
+    ) {
+        TreeSet<String> tickers = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+        transactions.stream().map(PortfolioTransactionEntity::getTicker).filter(Objects::nonNull).forEach(tickers::add);
+        lots.stream().map(PortfolioRealizedLotEntity::getSymbol).forEach(tickers::add);
+        incomes.stream().map(PortfolioIncomeEntity::getSymbol).forEach(tickers::add);
+        return List.copyOf(tickers);
+    }
+
+    private boolean inside(LocalDate date, LocalDate from, LocalDate to) {
+        return (from == null || !date.isBefore(from)) && (to == null || !date.isAfter(to));
+    }
+
+    private void validatePeriod(LocalDate from, LocalDate to) {
+        if (from != null && to != null && from.isAfter(to)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Portfolio analysis 'from' date must not be after 'to' date");
+        }
+    }
+
+    private String normalizeTicker(String ticker) {
+        return ticker == null || ticker.isBlank() ? null : ticker.trim().toUpperCase(Locale.ROOT);
     }
 
     private record PositionKey(String ticker, String currency) {

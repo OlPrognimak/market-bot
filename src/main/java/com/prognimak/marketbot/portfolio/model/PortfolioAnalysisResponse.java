@@ -1,7 +1,7 @@
 package com.prognimak.marketbot.portfolio.model;
 
 import java.math.BigDecimal;
-import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
@@ -11,9 +11,14 @@ public record PortfolioAnalysisResponse(
         int realizedLotCount,
         int incomeCount,
         List<Position> positions,
+        LocalDate periodFrom,
+        LocalDate periodTo,
+        String selectedTicker,
+        List<String> availableTickers,
+        Map<String, BigDecimal> realizedProfitByCurrency,
+        Map<String, BigDecimal> realizedLossByCurrency,
         Map<String, BigDecimal> realizedPnlByCurrency,
-        Map<String, BigDecimal> incomeByCurrency,
-        List<Transaction> recentTransactions
+        Map<String, BigDecimal> incomeByCurrency
 ) {
     public record Position(
             String ticker,
@@ -29,14 +34,4 @@ public record PortfolioAnalysisResponse(
     ) {
     }
 
-    public record Transaction(
-            Instant eventTime,
-            String ticker,
-            String transactionType,
-            BigDecimal quantity,
-            BigDecimal pricePerShare,
-            BigDecimal totalAmount,
-            String currency
-    ) {
-    }
 }

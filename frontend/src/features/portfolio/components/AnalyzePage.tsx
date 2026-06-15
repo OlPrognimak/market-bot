@@ -13,12 +13,20 @@ const money = (value: number | null | undefined, currency: string) =>
 export function AnalyzePage({ token }: { token: string }) {
   const [analysis, setAnalysis] = useState<PortfolioAnalysis | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [ticker, setTicker] = useState("");
+  const [appliedFilters, setAppliedFilters] = useState<{ from?: string; to?: string; ticker?: string }>({});
 
   useEffect(() => {
-    fetchPortfolioAnalysis(token)
+    setLoading(true);
+    setError(null);
+    fetchPortfolioAnalysis(token, appliedFilters)
       .then(setAnalysis)
-      .catch((reason) => setError(reason instanceof Error ? reason.message : "Could not load analysis"));
-  }, [token]);
+      .catch((reason) => setError(reason instanceof Error ? reason.message : "Could not load analysis"))
+      .finally(() => setLoading(false));
+  }, [appliedFilters, token]);
 
   if (error) return <main className="dashboard"><div className="error-banner">{error}</div></main>;
   if (!analysis) return <main className="dashboard">Loading portfolio analysis</main>;
@@ -32,23 +40,48 @@ export function AnalyzePage({ token }: { token: string }) {
         </div>
       </header>
 
+      <section className="portfolio-analysis-filters">
+        <label>
+          From
+          <input type="date" value={from} max={to || undefined} onChange={(event) => setFrom(event.target.value)} />
+        </label>
+        <label>
+          To
+          <input type="date" value={to} min={from || undefined} onChange={(event) => setTo(event.target.value)} />
+        </label>
+        <label>
+          Ticker
+          <select value={ticker} onChange={(event) => setTicker(event.target.value)}>
+            <option value="">All tickers</option>
+            {analysis.availableTickers.map((item) => <option key={item} value={item}>{item}</option>)}
+          </select>
+        </label>
+        <button type="button" disabled={loading || Boolean(from && to && from > to)} onClick={() => setAppliedFilters({ from, to, ticker })}>
+          {loading ? "Calculating" : "Apply filters"}
+        </button>
+        <button type="button" className="secondary-button" disabled={loading} onClick={() => {
+          setFrom("");
+          setTo("");
+          setTicker("");
+          setAppliedFilters({});
+        }}>
+          Clear
+        </button>
+      </section>
+
       <section className="portfolio-summary-grid">
         <Summary title="Provider" value={analysis.providerType} />
-        <Summary title="Transactions" value={number(analysis.transactionCount, 0)} />
-        <Summary title="Realized lots" value={number(analysis.realizedLotCount, 0)} />
-        <Summary title="Income records" value={number(analysis.incomeCount, 0)} />
+        <Summary title="Filtered transactions" value={number(analysis.transactionCount, 0)} />
+        <Summary title="Filtered realized lots" value={number(analysis.realizedLotCount, 0)} />
+        <Summary title="Filtered income records" value={number(analysis.incomeCount, 0)} />
         <Summary title="Open positions" value={number(analysis.positions.length, 0)} />
       </section>
 
       <section className="portfolio-currency-summary">
-        <div className="summary-panel">
-          <span className="panel-title">Realized P/L</span>
-          {Object.entries(analysis.realizedPnlByCurrency).map(([currency, value]) => <strong key={currency}>{money(value, currency)}</strong>)}
-        </div>
-        <div className="summary-panel">
-          <span className="panel-title">Net income</span>
-          {Object.entries(analysis.incomeByCurrency).map(([currency, value]) => <strong key={currency}>{money(value, currency)}</strong>)}
-        </div>
+        <CurrencySummary title="Realized wins" values={analysis.realizedProfitByCurrency} />
+        <CurrencySummary title="Realized losses" values={analysis.realizedLossByCurrency} />
+        <CurrencySummary title="Net realized P/L" values={analysis.realizedPnlByCurrency} />
+        <CurrencySummary title="Net income" values={analysis.incomeByCurrency} />
       </section>
 
       <h2>Current positions</h2>
@@ -74,30 +107,20 @@ export function AnalyzePage({ token }: { token: string }) {
           </tbody>
         </table>
       </div>
-
-      <h2>Recent activity</h2>
-      <div className="table-frame">
-        <table className="portfolio-table">
-          <thead><tr><th>Time</th><th>Provider</th><th>Ticker</th><th>Type</th><th>Quantity</th><th>Price</th><th>Total</th></tr></thead>
-          <tbody>
-            {analysis.recentTransactions.map((item, index) => (
-              <tr key={`${item.eventTime}-${index}`}>
-                <td>{new Date(item.eventTime).toLocaleString()}</td>
-                <td>{analysis.providerType}</td>
-                <td>{item.ticker ?? "-"}</td>
-                <td>{item.transactionType}</td>
-                <td>{number(item.quantity, 8)}</td>
-                <td>{money(item.pricePerShare, item.currency)}</td>
-                <td>{money(item.totalAmount, item.currency)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
     </main>
   );
 }
 
 function Summary({ title, value }: { title: string; value: string }) {
   return <div className="summary-panel"><span className="panel-title">{title}</span><strong>{value}</strong></div>;
+}
+
+function CurrencySummary({ title, values }: { title: string; values: Record<string, number> }) {
+  const entries = Object.entries(values);
+  return (
+    <div className="summary-panel">
+      <span className="panel-title">{title}</span>
+      {entries.length ? entries.map(([currency, value]) => <strong key={currency}>{money(value, currency)}</strong>) : <strong>-</strong>}
+    </div>
+  );
 }
