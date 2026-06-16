@@ -39,15 +39,23 @@ public class PortfolioAnalysisService {
 
     @Transactional(readOnly = true)
     public PortfolioAnalysisResponse analyze(Long userId, LocalDate from, LocalDate to, String ticker) {
+        return analyze(userId, from, to, ticker, null);
+    }
+
+    @Transactional(readOnly = true)
+    public PortfolioAnalysisResponse analyze(Long userId, LocalDate from, LocalDate to, String ticker, String providerType) {
         validatePeriod(from, to);
         String selectedTicker = normalizeTicker(ticker);
-        List<PortfolioTransactionEntity> transactions = transactionRepository.findByUserIdOrderByEventTimeAsc(userId);
+        PortfolioProviderType selectedProvider = normalizeProvider(providerType);
+        List<PortfolioTransactionEntity> transactions = transactionRepository.findByUserIdOrderByEventTimeAsc(userId).stream()
+                .filter(transaction -> selectedProvider == null || transaction.getProviderType() == selectedProvider)
+                .toList();
         Map<PositionKey, PositionState> states = new LinkedHashMap<>();
         for (PortfolioTransactionEntity transaction : transactions) {
             if (transaction.getTicker() == null || transaction.getQuantity() == null) {
                 continue;
             }
-            PositionKey key = new PositionKey(transaction.getTicker(), transaction.getCurrency());
+            PositionKey key = new PositionKey(transaction.getProviderType(), transaction.getTicker(), transaction.getCurrency());
             PositionState state = states.computeIfAbsent(key, ignored -> new PositionState());
             if (transaction.getTransactionType().startsWith("BUY")) {
                 state.quantity = state.quantity.add(transaction.getQuantity());
@@ -77,8 +85,12 @@ public class PortfolioAnalysisService {
                 .sorted(Comparator.comparing(PortfolioAnalysisResponse.Position::ticker))
                 .toList();
 
-        var allLots = realizedLotRepository.findByUserId(userId);
-        var allIncomes = incomeRepository.findByUserId(userId);
+        var allLots = realizedLotRepository.findByUserId(userId).stream()
+                .filter(lot -> selectedProvider == null || lot.getProviderType() == selectedProvider)
+                .toList();
+        var allIncomes = incomeRepository.findByUserId(userId).stream()
+                .filter(incomeItem -> selectedProvider == null || incomeItem.getProviderType() == selectedProvider)
+                .toList();
         var lots = allLots.stream()
                 .filter(lot -> inside(lot.getSoldDate(), from, to))
                 .filter(lot -> selectedTicker == null || lot.getSymbol().equalsIgnoreCase(selectedTicker))
@@ -86,6 +98,11 @@ public class PortfolioAnalysisService {
         var incomes = allIncomes.stream()
                 .filter(incomeItem -> inside(incomeItem.getIncomeDate(), from, to))
                 .filter(incomeItem -> selectedTicker == null || incomeItem.getSymbol().equalsIgnoreCase(selectedTicker))
+                .toList();
+        var filteredTransactions = transactions.stream()
+                .filter(transaction -> inside(transaction.getEventTime().atZone(ZoneId.systemDefault()).toLocalDate(), from, to))
+                .filter(transaction -> selectedTicker == null
+                        || selectedTicker.equalsIgnoreCase(transaction.getTicker()))
                 .toList();
         Map<String, BigDecimal> profits = new TreeMap<>();
         Map<String, BigDecimal> losses = new TreeMap<>();
@@ -101,22 +118,24 @@ public class PortfolioAnalysisService {
         Map<String, BigDecimal> income = new TreeMap<>();
         incomes.forEach(item -> income.merge(item.getCurrency(), item.getNetAmount(), BigDecimal::add));
         List<String> availableTickers = availableTickers(transactions, allLots, allIncomes);
-        long filteredTransactionCount = transactions.stream()
-                .filter(transaction -> inside(transaction.getEventTime().atZone(ZoneId.systemDefault()).toLocalDate(), from, to))
-                .filter(transaction -> selectedTicker == null
-                        || selectedTicker.equalsIgnoreCase(transaction.getTicker()))
-                .count();
+        List<PortfolioAnalysisResponse.FilteredTickerResult> filteredTickerResults =
+                filteredTickerResults(filteredTransactions, lots, incomes);
+        List<PortfolioAnalysisResponse.RealizedLotDetail> selectedTickerRealizedLots =
+                selectedTicker == null ? List.of() : realizedLotDetails(lots);
 
         return new PortfolioAnalysisResponse(
-                PortfolioProviderType.REVOLUT,
-                Math.toIntExact(filteredTransactionCount),
+                selectedProvider,
+                filteredTransactions.size(),
                 lots.size(),
                 incomes.size(),
                 positions,
                 from,
                 to,
                 selectedTicker,
+                selectedProvider,
                 availableTickers,
+                filteredTickerResults,
+                selectedTickerRealizedLots,
                 profits,
                 losses,
                 realized,
@@ -153,6 +172,7 @@ public class PortfolioAnalysisService {
                 ? null
                 : unrealized.multiply(BigDecimal.valueOf(100)).divide(state.costBasis, MATH_CONTEXT);
         return new PortfolioAnalysisResponse.Position(
+                key.providerType(),
                 key.ticker(),
                 key.currency(),
                 state.quantity,
@@ -184,6 +204,74 @@ public class PortfolioAnalysisService {
         return List.copyOf(tickers);
     }
 
+    private List<PortfolioAnalysisResponse.FilteredTickerResult> filteredTickerResults(
+            List<PortfolioTransactionEntity> transactions,
+            List<PortfolioRealizedLotEntity> lots,
+            List<PortfolioIncomeEntity> incomes
+    ) {
+        Map<ResultKey, ResultState> results = new HashMap<>();
+        transactions.stream()
+                .filter(transaction -> transaction.getTicker() != null)
+                .forEach(transaction -> results
+                        .computeIfAbsent(new ResultKey(transaction.getProviderType(), transaction.getTicker(), transaction.getCurrency()),
+                                ignored -> new ResultState())
+                        .transactionCount++);
+        lots.forEach(lot -> {
+            ResultState result = results.computeIfAbsent(new ResultKey(lot.getProviderType(), lot.getSymbol(), lot.getCurrency()),
+                    ignored -> new ResultState());
+            result.realizedLotCount++;
+            result.realizedPnl = result.realizedPnl.add(lot.getGrossPnl());
+            if (lot.getGrossPnl().signum() >= 0) {
+                result.realizedProfit = result.realizedProfit.add(lot.getGrossPnl());
+            } else {
+                result.realizedLoss = result.realizedLoss.add(lot.getGrossPnl());
+            }
+        });
+        incomes.forEach(income -> {
+            ResultState result = results.computeIfAbsent(new ResultKey(income.getProviderType(), income.getSymbol(), income.getCurrency()),
+                    ignored -> new ResultState());
+            result.incomeCount++;
+            result.income = result.income.add(income.getNetAmount());
+        });
+        return results.entrySet().stream()
+                .map(entry -> new PortfolioAnalysisResponse.FilteredTickerResult(
+                        entry.getKey().providerType(),
+                        entry.getKey().ticker(),
+                        entry.getKey().currency(),
+                        entry.getValue().transactionCount,
+                        entry.getValue().realizedLotCount,
+                        entry.getValue().incomeCount,
+                        entry.getValue().realizedProfit,
+                        entry.getValue().realizedLoss,
+                        entry.getValue().realizedPnl,
+                        entry.getValue().income))
+                .sorted(Comparator.comparing(PortfolioAnalysisResponse.FilteredTickerResult::ticker)
+                        .thenComparing(PortfolioAnalysisResponse.FilteredTickerResult::providerType)
+                        .thenComparing(PortfolioAnalysisResponse.FilteredTickerResult::currency))
+                .toList();
+    }
+
+    private List<PortfolioAnalysisResponse.RealizedLotDetail> realizedLotDetails(
+            List<PortfolioRealizedLotEntity> lots
+    ) {
+        return lots.stream()
+                .map(lot -> new PortfolioAnalysisResponse.RealizedLotDetail(
+                        lot.getProviderType(),
+                        lot.getAcquiredDate(),
+                        lot.getSoldDate(),
+                        lot.getSymbol(),
+                        lot.getCurrency(),
+                        lot.getQuantity(),
+                        lot.getCostBasis(),
+                        lot.getGrossProceeds(),
+                        lot.getGrossPnl().signum() > 0 ? lot.getGrossPnl() : BigDecimal.ZERO,
+                        lot.getGrossPnl().signum() < 0 ? lot.getGrossPnl() : BigDecimal.ZERO,
+                        lot.getGrossPnl()))
+                .sorted(Comparator.comparing(PortfolioAnalysisResponse.RealizedLotDetail::soldDate)
+                        .thenComparing(PortfolioAnalysisResponse.RealizedLotDetail::acquiredDate))
+                .toList();
+    }
+
     private boolean inside(LocalDate date, LocalDate from, LocalDate to) {
         return (from == null || !date.isBefore(from)) && (to == null || !date.isAfter(to));
     }
@@ -199,12 +287,37 @@ public class PortfolioAnalysisService {
         return ticker == null || ticker.isBlank() ? null : ticker.trim().toUpperCase(Locale.ROOT);
     }
 
-    private record PositionKey(String ticker, String currency) {
+    private PortfolioProviderType normalizeProvider(String providerType) {
+        if (providerType == null || providerType.isBlank() || "ALL".equalsIgnoreCase(providerType)) {
+            return null;
+        }
+        try {
+            return PortfolioProviderType.valueOf(providerType.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException exception) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Unsupported portfolio provider type: " + providerType);
+        }
+    }
+
+    private record PositionKey(PortfolioProviderType providerType, String ticker, String currency) {
+    }
+
+    private record ResultKey(PortfolioProviderType providerType, String ticker, String currency) {
     }
 
     private static final class PositionState {
         private BigDecimal quantity = BigDecimal.ZERO;
         private BigDecimal costBasis = BigDecimal.ZERO;
         private boolean unreconciled;
+    }
+
+    private static final class ResultState {
+        private int transactionCount;
+        private int realizedLotCount;
+        private int incomeCount;
+        private BigDecimal realizedProfit = BigDecimal.ZERO;
+        private BigDecimal realizedLoss = BigDecimal.ZERO;
+        private BigDecimal realizedPnl = BigDecimal.ZERO;
+        private BigDecimal income = BigDecimal.ZERO;
     }
 }

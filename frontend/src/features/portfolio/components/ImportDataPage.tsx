@@ -2,11 +2,12 @@
 
 import { ChangeEvent, useEffect, useState } from "react";
 import { fetchPortfolioImports, uploadPortfolioCsv } from "../api";
-import type { PortfolioImport } from "../types";
+import type { PortfolioImport, PortfolioProviderType } from "../types";
 
 export function ImportDataPage({ token }: { token: string }) {
   const [imports, setImports] = useState<PortfolioImport[]>([]);
   const [files, setFiles] = useState<File[]>([]);
+  const [providerType, setProviderType] = useState<PortfolioProviderType>("REVOLUT");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -31,7 +32,7 @@ export function ImportDataPage({ token }: { token: string }) {
     try {
       const results: PortfolioImport[] = [];
       for (const file of files) {
-        results.push(await uploadPortfolioCsv(token, file));
+        results.push(await uploadPortfolioCsv(token, file, providerType));
       }
       const imported = results.reduce((sum, item) => sum + item.importedRows, 0);
       const skipped = results.reduce((sum, item) => sum + item.skippedRows, 0);
@@ -51,15 +52,19 @@ export function ImportDataPage({ token }: { token: string }) {
       <header className="dashboard-header">
         <div>
           <h1>Import data</h1>
-          <p>Upload Revolut all-transactions and gain/loss CSV exports. Existing records are skipped.</p>
+          <p>Upload Revolut or Trade Republic CSV exports. Existing records are skipped.</p>
         </div>
       </header>
 
       <section className="portfolio-upload-panel">
         <div>
-          <strong>Provider type: Revolut</strong>
-          <p>Select one or both Revolut CSV exports. Files are detected by their headers.</p>
+          <strong>Provider type</strong>
+          <p>Select the provider and one or more CSV exports. Files are detected by their headers.</p>
         </div>
+        <select value={providerType} onChange={(event) => setProviderType(event.target.value as PortfolioProviderType)}>
+          <option value="REVOLUT">Revolut</option>
+          <option value="TRADE_REPUBLIC">Trade Republic</option>
+        </select>
         <input type="file" accept=".csv,text/csv" multiple onChange={selectFiles} />
         <button type="button" disabled={busy || files.length === 0} onClick={upload}>
           {busy ? "Importing" : `Import ${files.length || ""} file${files.length === 1 ? "" : "s"}`}

@@ -39,9 +39,10 @@ public class PortfolioController {
             @AuthenticationPrincipal AppUserPrincipal principal,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
-            @RequestParam(required = false) String ticker
+            @RequestParam(required = false) String ticker,
+            @RequestParam(required = false) String providerType
     ) {
-        return analysisService.analyze(principal.user().getId(), from, to, ticker);
+        return analysisService.analyze(principal.user().getId(), from, to, ticker, providerType);
     }
 
     @GetMapping("/markers/{ticker}")

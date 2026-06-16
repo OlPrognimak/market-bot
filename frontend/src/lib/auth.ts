@@ -176,17 +176,22 @@ export async function deleteCryptoCatalogItem(token: string, id: number): Promis
 }
 
 export async function authFetch(token: string, path: string, init: RequestInit = {}): Promise<Response> {
+  const headers = new Headers(init.headers);
+  headers.set("Authorization", `Bearer ${token}`);
+  if (!(init.body instanceof FormData) && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+
   const response = await fetch(`${backendHttpUrl()}${path}`, {
     ...init,
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-      ...init.headers
-    }
+    headers
   });
 
   if (!response.ok) {
     const message = await response.text();
+    if (response.status === 401 || response.status === 403) {
+      throw new Error(message || "Session expired or access denied. Please log out and sign in again.");
+    }
     throw new Error(message || `Request failed with ${response.status}`);
   }
 

@@ -680,7 +680,7 @@ button:disabled {
 
 .portfolio-analysis-filters {
   display: grid;
-  grid-template-columns: repeat(3, minmax(170px, 1fr)) auto auto;
+  grid-template-columns: repeat(4, minmax(160px, 1fr)) auto auto;
   align-items: end;
   gap: 12px;
   margin-bottom: 16px;
@@ -742,6 +742,30 @@ button:disabled {
 
 .positions-table {
   min-width: 1500px;
+}
+
+.filtered-results-table {
+  min-width: 1250px;
+}
+
+.realized-lots-table {
+  min-width: 1450px;
+}
+
+.portfolio-analysis-note {
+  margin: -4px 0 10px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.portfolio-analysis-table-frame {
+  max-height: min(48vh, 520px);
+}
+
+.portfolio-analysis-table-frame .portfolio-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
 
 .warning-row {
