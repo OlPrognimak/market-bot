@@ -41,6 +41,7 @@ export function CryptoChartDialog({ token, result, onClose }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [newsOpen, setNewsOpen] = useState(false);
   const [researchOpen, setResearchOpen] = useState(false);
+  const [hoverTimeLabel, setHoverTimeLabel] = useState<{ text: string; x: number } | null>(null);
 
   useEffect(() => {
     if (!result) {
@@ -48,6 +49,7 @@ export function CryptoChartDialog({ token, result, onClose }: Props) {
     }
     setRange("today");
     setChartMode("movement");
+    setHoverTimeLabel(null);
   }, [result?.symbol]);
 
   useEffect(() => {
@@ -123,7 +125,11 @@ export function CryptoChartDialog({ token, result, onClose }: Props) {
       },
       crosshair: {
         horzLine: { color: "#687783" },
-        vertLine: { color: "#687783" }
+        vertLine: {
+          color: "#687783",
+          labelVisible: false,
+          labelBackgroundColor: "#26323d"
+        }
       }
     });
 
@@ -141,7 +147,7 @@ export function CryptoChartDialog({ token, result, onClose }: Props) {
     } else if (chart) {
       const chartPoints = toLineData(chart);
       const latestValue = chartPoints.at(-1)?.value ?? 0;
-      const lineColor = latestValue >= 0 ? "#147a46" : "#b42318";
+      const lineColor = latestValue > 0 ? "#147a46" : latestValue < 0 ? "#b42318" : "#65717f";
       const series = chartApi.addSeries(LineSeries, {
         color: lineColor,
         lineWidth: 2,
@@ -176,8 +182,23 @@ export function CryptoChartDialog({ token, result, onClose }: Props) {
       });
     }
     chartApi.timeScale().fitContent();
+    chartApi.subscribeCrosshairMove((param) => {
+      const container = chartContainerRef.current;
+      if (!container || !param.point || param.time === undefined) {
+        setHoverTimeLabel(null);
+        return;
+      }
 
-    return () => destroyChart(chartApi);
+      setHoverTimeLabel({
+        text: formatChartTime(param.time, activeTimeZone),
+        x: container.offsetLeft + param.point.x
+      });
+    });
+
+    return () => {
+      setHoverTimeLabel(null);
+      destroyChart(chartApi);
+    };
   }, [candles, chart, chartMode, result]);
 
   if (!result) {
@@ -218,6 +239,11 @@ export function CryptoChartDialog({ token, result, onClose }: Props) {
 
         <div className="chart-panel">
           <div ref={chartContainerRef} className="lightweight-chart" />
+          {hoverTimeLabel ? (
+            <div className="chart-hover-time-label" style={{ left: hoverTimeLabel.x }}>
+              {hoverTimeLabel.text}
+            </div>
+          ) : null}
           {loading ? <div className="chart-overlay">Loading chart</div> : null}
           {!loading && error ? <div className="chart-overlay error">{error}</div> : null}
           {!loading && !error && activePointCount === 0 ? <div className="chart-overlay">No Binance data for this range</div> : null}
@@ -292,8 +318,9 @@ function formatChartDate(value: string, timeZone = CHART_TIME_ZONE): string {
 }
 
 function formatChartTime(value: Time, timeZone = CHART_TIME_ZONE): string {
-  if (typeof value !== "number") {
-    return value.toString();
+  const date = timeToDate(value);
+  if (!date) {
+    return String(value);
   }
 
   return new Intl.DateTimeFormat("de-DE", {
@@ -302,7 +329,21 @@ function formatChartTime(value: Time, timeZone = CHART_TIME_ZONE): string {
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit"
-  }).format(new Date(value * 1000));
+  }).format(date);
+}
+
+function timeToDate(value: Time): Date | null {
+  if (typeof value === "number") {
+    return new Date(value * 1000);
+  }
+  if (typeof value === "string") {
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+  if ("year" in value && "month" in value && "day" in value) {
+    return new Date(Date.UTC(value.year, value.month - 1, value.day));
+  }
+  return null;
 }
 
 function formatCryptoPrice(value: number): string {

@@ -65,6 +65,36 @@ public class PortfolioSchemaRepair implements ApplicationRunner {
                  where provider_type = 'TRADE_REPUBLIC'
                    and ticker in ('US82621A2033', 'SMNEY')
                 """);
+        transactionRows += jdbcTemplate.update("""
+                update marketbot.portfolio_transaction
+                   set ticker = 'MRK.DE'
+                 where provider_type = 'TRADE_REPUBLIC'
+                   and ticker = 'DE0006599905'
+                """);
+        transactionRows += jdbcTemplate.update("""
+                update marketbot.portfolio_transaction
+                   set ticker = 'BAC'
+                 where provider_type = 'TRADE_REPUBLIC'
+                   and ticker = 'US0605051046'
+                """);
+        transactionRows += jdbcTemplate.update("""
+                update marketbot.portfolio_transaction
+                   set ticker = 'JPM'
+                 where provider_type = 'TRADE_REPUBLIC'
+                   and ticker = 'US46625H1005'
+                """);
+        transactionRows += jdbcTemplate.update("""
+                update marketbot.portfolio_transaction
+                   set ticker = 'RMBS'
+                 where provider_type = 'TRADE_REPUBLIC'
+                   and ticker = 'US7509171069'
+                """);
+        transactionRows += jdbcTemplate.update("""
+                update marketbot.portfolio_transaction
+                   set ticker = 'SPCX'
+                 where provider_type = 'TRADE_REPUBLIC'
+                   and ticker = 'US84615Q1031'
+                """);
         int realizedRows = jdbcTemplate.update("""
                 update marketbot.portfolio_realized_lot
                    set symbol = 'C8PX.DE'
@@ -77,7 +107,37 @@ public class PortfolioSchemaRepair implements ApplicationRunner {
                  where provider_type = 'TRADE_REPUBLIC'
                    and symbol in ('US82621A2033', 'SMNEY')
                 """);
-        log.info("Repaired Trade Republic ETF aliases: {} transactions, {} realized lots.",
+        realizedRows += jdbcTemplate.update("""
+                update marketbot.portfolio_realized_lot
+                   set symbol = 'MRK.DE'
+                 where provider_type = 'TRADE_REPUBLIC'
+                   and symbol = 'DE0006599905'
+                """);
+        realizedRows += jdbcTemplate.update("""
+                update marketbot.portfolio_realized_lot
+                   set symbol = 'BAC'
+                 where provider_type = 'TRADE_REPUBLIC'
+                   and symbol = 'US0605051046'
+                """);
+        realizedRows += jdbcTemplate.update("""
+                update marketbot.portfolio_realized_lot
+                   set symbol = 'JPM'
+                 where provider_type = 'TRADE_REPUBLIC'
+                   and symbol = 'US46625H1005'
+                """);
+        realizedRows += jdbcTemplate.update("""
+                update marketbot.portfolio_realized_lot
+                   set symbol = 'RMBS'
+                 where provider_type = 'TRADE_REPUBLIC'
+                   and symbol = 'US7509171069'
+                """);
+        realizedRows += jdbcTemplate.update("""
+                update marketbot.portfolio_realized_lot
+                   set symbol = 'SPCX'
+                 where provider_type = 'TRADE_REPUBLIC'
+                   and symbol = 'US84615Q1031'
+                """);
+        log.info("Repaired Trade Republic aliases: {} transactions, {} realized lots.",
                 transactionRows, realizedRows);
     }
 }

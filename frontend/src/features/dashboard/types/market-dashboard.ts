@@ -139,6 +139,7 @@ export type ExtendedHoursResult = {
 export type ExtendedHoursSnapshot = {
   lastScanAt: string;
   dataDate?: string | null;
+  expectedDate?: string | null;
   fallback: boolean;
   results: ExtendedHoursResult[];
 };

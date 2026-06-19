@@ -7,6 +7,7 @@ import java.util.List;
 public record ExtendedHoursSnapshot(
         Instant lastScanAt,
         LocalDate dataDate,
+        LocalDate expectedDate,
         boolean fallback,
         List<ExtendedHoursResult> results
 ) {

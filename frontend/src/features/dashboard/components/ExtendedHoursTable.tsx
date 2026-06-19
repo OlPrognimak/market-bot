@@ -1,14 +1,20 @@
 import { formatDateTime, formatPercent, formatPrice } from "@/lib/format";
-import type { ExtendedHoursSnapshot } from "../types/market-dashboard";
+import type { ExtendedHoursSnapshot, MarketSession } from "../types/market-dashboard";
 
-export function ExtendedHoursTable({ snapshot }: { snapshot: ExtendedHoursSnapshot | null }) {
+export function ExtendedHoursTable({
+  snapshot,
+  selectedSession
+}: {
+  snapshot: ExtendedHoursSnapshot | null;
+  selectedSession?: MarketSession | "OVERVIEW";
+}) {
   const results = snapshot?.results ?? [];
   if (results.length === 0) return <div className="empty-state">No session data is available for the selected watchlist.</div>;
   return (
     <>
       <div className={`session-data-date${snapshot?.fallback ? " fallback" : ""}`}>
         <strong>Market date: {formatMarketDate(snapshot?.dataDate)}</strong>
-        {snapshot?.fallback ? <span>No data is available for today. Showing the latest available date.</span> : null}
+        {snapshot?.fallback ? <span>{fallbackMessage(snapshot, selectedSession)}</span> : null}
       </div>
       <div className="table-frame market-results-frame">
         <table className="market-results-table">
@@ -43,4 +49,15 @@ function formatMarketDate(value?: string | null) {
 function sessionLabel(session: ExtendedHoursSnapshot["results"][number]["session"]) {
   return session === "PRE_MARKET" ? "PRE" : session === "POST_MARKET" ? "POST" : session === "REGULAR" ? "REG" : session;
 }
+
+function fallbackMessage(snapshot: ExtendedHoursSnapshot, selectedSession?: MarketSession | "OVERVIEW") {
+  const expectedDate = formatMarketDate(snapshot.expectedDate);
+  const session = selectedSession === "PRE_MARKET"
+    ? "pre-market"
+    : selectedSession === "POST_MARKET"
+      ? "post-market"
+      : "selected session";
+  return `No ${session} data is available for ${expectedDate}. Showing the latest available date.`;
+}
+
 function tone(value: number) { return value > 0 ? "value-positive" : value < 0 ? "value-negative" : "value-neutral"; }

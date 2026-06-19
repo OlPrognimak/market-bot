@@ -1907,6 +1907,23 @@ tbody tr:hover {
   height: 100%;
 }
 
+.chart-hover-time-label {
+  position: absolute;
+  bottom: 18px;
+  z-index: 3;
+  min-width: max-content;
+  padding: 4px 8px;
+  transform: translateX(-50%);
+  border-radius: 4px;
+  background: #26323d;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(23, 33, 43, 0.18);
+}
+
 .chart-overlay {
   position: absolute;
   inset: 16px 18px 10px;

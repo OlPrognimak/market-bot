@@ -16,6 +16,7 @@ final class PortfolioTickerAliases {
             "IRBTQ", List.of("IRBT"),
             "AIR1", List.of("AIR.PA"),
             "ENR1", List.of("ENR.DE"),
+            "SEJ1", List.of("SAF.PA"),
             "XFB", List.of("XFAB.PA")
     );
     private static final Map<String, String> TRADE_REPUBLIC_ISIN_TO_MARKET = Map.ofEntries(
@@ -32,6 +33,11 @@ final class PortfolioTickerAliases {
             Map.entry("US1667641005", "CVX"),
             Map.entry("US67066G1040", "NVDA"),
             Map.entry("DE0007236101", "SIE.DE"),
+            Map.entry("DE0006599905", "MRK.DE"),
+            Map.entry("US0605051046", "BAC"),
+            Map.entry("US46625H1005", "JPM"),
+            Map.entry("US7509171069", "RMBS"),
+            Map.entry("US84615Q1031", "SPCX"),
             Map.entry("IE0000ZL1RD2", "C8PX.DE")
     );
 
