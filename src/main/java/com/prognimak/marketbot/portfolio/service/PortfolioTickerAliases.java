@@ -34,8 +34,12 @@ final class PortfolioTickerAliases {
             Map.entry("US67066G1040", "NVDA"),
             Map.entry("DE0007236101", "SIE.DE"),
             Map.entry("DE0006599905", "MRK.DE"),
+            Map.entry("GB0002634946", "BSP.DE"),
+            Map.entry("CA53680V1076", "LSPD.TO"),
+            Map.entry("US0258161092", "AXP"),
             Map.entry("US0605051046", "BAC"),
             Map.entry("US46625H1005", "JPM"),
+            Map.entry("US7069151055", "PENG"),
             Map.entry("US7509171069", "RMBS"),
             Map.entry("US84615Q1031", "SPCX"),
             Map.entry("IE0000ZL1RD2", "C8PX.DE")
@@ -46,6 +50,11 @@ final class PortfolioTickerAliases {
 
     static List<String> marketCandidates(String revolutTicker) {
         return REVOLUT_TO_MARKET.getOrDefault(normalize(revolutTicker), List.of());
+    }
+
+    static String revolutMarketSymbol(String revolutTicker) {
+        String normalizedTicker = normalize(revolutTicker);
+        return REVOLUT_TO_MARKET.getOrDefault(normalizedTicker, List.of(normalizedTicker)).getFirst();
     }
 
     static List<String> revolutCandidates(String marketTicker) {

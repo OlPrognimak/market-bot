@@ -1,4 +1,6 @@
+import { useMemo, useState } from "react";
 import { formatDateTime, formatPercent, formatPrice } from "@/lib/format";
+import { nextSort, sortButtonLabel, sortRows, type SortColumn, type SortState } from "@/lib/tableSort";
 import type { MarketScanResult } from "../types/market-dashboard";
 
 type Props = {
@@ -7,6 +9,9 @@ type Props = {
 };
 
 export function MarketResultsTable({ results, onOpenChart }: Props) {
+  const [sort, setSort] = useState<SortState<MarketColumnKey>>({ key: "symbol", direction: "asc" });
+  const sortedResults = useMemo(() => sortRows(results, sort, marketColumns), [results, sort]);
+
   if (results.length === 0) {
     return <div className="empty-state">No scan results yet.</div>;
   }
@@ -16,21 +21,17 @@ export function MarketResultsTable({ results, onOpenChart }: Props) {
       <table className="market-results-table">
         <thead>
           <tr>
-            <th>Symbol</th>
-            <th>Company</th>
-            <th>Country</th>
-            <th>Priority</th>
-            <th>Current</th>
-            <th>Delta</th>
-            <th>Rolling</th>
-            <th>Trend</th>
-            <th>Price</th>
-            <th>Range</th>
-            <th>Updated</th>
+            {marketColumns.map((column) => (
+              <th key={column.key}>
+                <button type="button" className="sortable-header" onClick={() => setSort((current) => nextSort(current, column.key))}>
+                  {sortButtonLabel(sort, column.key, column.label)}
+                </button>
+              </th>
+            ))}
           </tr>
         </thead>
         <tbody>
-          {results.map((result) => (
+          {sortedResults.map((result) => (
             <tr key={result.symbol} className={`row-trend-${result.trend.toLowerCase()} ${result.alert ? "row-alert" : ""}`}>
               <td>
                 <button type="button" className="symbol-link" onClick={() => onOpenChart(result)} aria-label={`Open chart for ${result.symbol}`}>
@@ -66,6 +67,22 @@ export function MarketResultsTable({ results, onOpenChart }: Props) {
     </div>
   );
 }
+
+type MarketColumnKey = "symbol" | "company" | "region" | "priority" | "current" | "delta" | "rolling" | "trend" | "price" | "range" | "updated";
+
+const marketColumns: Array<SortColumn<MarketScanResult, MarketColumnKey>> = [
+  { key: "symbol", label: "Symbol", value: (row) => row.symbol },
+  { key: "company", label: "Company", value: (row) => row.companyName },
+  { key: "region", label: "Country", value: (row) => row.region },
+  { key: "priority", label: "Priority", value: (row) => row.priority ?? "NORMAL" },
+  { key: "current", label: "Current", value: (row) => row.currentPercent },
+  { key: "delta", label: "Delta", value: (row) => row.delta },
+  { key: "rolling", label: "Rolling", value: (row) => row.rollingDelta },
+  { key: "trend", label: "Trend", value: (row) => row.trend },
+  { key: "price", label: "Price", value: (row) => row.currentPrice },
+  { key: "range", label: "Range", value: (row) => row.high - row.low },
+  { key: "updated", label: "Updated", value: (row) => row.updatedAt }
+];
 
 function companyLabel(result: MarketScanResult): string {
   return result.region ? `${result.companyName} (${result.region})` : result.companyName;

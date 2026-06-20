@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { nextSort, sortButtonLabel, sortRows, type SortColumn, type SortState } from "@/lib/tableSort";
 import { fetchPortfolioAnalysis } from "../api";
-import type { PortfolioAnalysis } from "../types";
+import type { PortfolioAnalysis, PortfolioFilteredTickerResult, PortfolioPosition, PortfolioRealizedLotDetail } from "../types";
 
 const number = (value: number | null | undefined, digits = 2) =>
   value == null ? "-" : value.toLocaleString(undefined, { maximumFractionDigits: digits });
@@ -19,6 +20,9 @@ export function AnalyzePage({ token }: { token: string }) {
   const [ticker, setTicker] = useState("");
   const [providerType, setProviderType] = useState("ALL");
   const [appliedFilters, setAppliedFilters] = useState<{ from?: string; to?: string; ticker?: string; providerType?: string }>({});
+  const [filteredSort, setFilteredSort] = useState<SortState<FilteredColumnKey>>({ key: "ticker", direction: "asc" });
+  const [lotSort, setLotSort] = useState<SortState<RealizedLotColumnKey>>({ key: "soldDate", direction: "desc" });
+  const [positionSort, setPositionSort] = useState<SortState<PositionColumnKey>>({ key: "ticker", direction: "asc" });
 
   useEffect(() => {
     setLoading(true);
@@ -28,6 +32,10 @@ export function AnalyzePage({ token }: { token: string }) {
       .catch((reason) => setError(reason instanceof Error ? reason.message : "Could not load analysis"))
       .finally(() => setLoading(false));
   }, [appliedFilters, token]);
+
+  const filteredTickerResults = useMemo(() => sortRows(analysis?.filteredTickerResults ?? [], filteredSort, filteredColumns), [analysis?.filteredTickerResults, filteredSort]);
+  const realizedLots = useMemo(() => sortRows(analysis?.selectedTickerRealizedLots ?? [], lotSort, realizedLotColumns), [analysis?.selectedTickerRealizedLots, lotSort]);
+  const positions = useMemo(() => sortRows(analysis?.positions ?? [], positionSort, positionColumns), [analysis?.positions, positionSort]);
 
   if (error) return <main className="dashboard"><div className="error-banner">{error}</div></main>;
   if (!analysis) return <main className="dashboard">Loading portfolio analysis</main>;
@@ -97,9 +105,9 @@ export function AnalyzePage({ token }: { token: string }) {
       <h2>Filtered ticker results</h2>
       <div className="table-frame portfolio-analysis-table-frame">
         <table className="portfolio-table filtered-results-table">
-          <thead><tr><th>Ticker</th><th>Provider</th><th>Currency</th><th>Transactions</th><th>Realized lots</th><th>Income records</th><th>Realized wins</th><th>Realized losses</th><th>Net realized P/L</th><th>Net income</th></tr></thead>
+          <thead><tr>{filteredColumns.map((column) => <th key={column.key}><button type="button" className="sortable-header" onClick={() => setFilteredSort((current) => nextSort(current, column.key))}>{sortButtonLabel(filteredSort, column.key, column.label)}</button></th>)}</tr></thead>
           <tbody>
-            {analysis.filteredTickerResults.length ? analysis.filteredTickerResults.map((result) => (
+            {filteredTickerResults.length ? filteredTickerResults.map((result) => (
               <tr key={`${result.providerType}-${result.ticker}-${result.currency}`}>
                 <td>{result.ticker}</td>
                 <td>{result.providerType}</td>
@@ -129,9 +137,9 @@ export function AnalyzePage({ token }: { token: string }) {
           </p>
           <div className="table-frame portfolio-analysis-table-frame">
             <table className="portfolio-table realized-lots-table">
-              <thead><tr><th>Acquired date</th><th>Sell date</th><th>Ticker</th><th>Provider</th><th>Currency</th><th>Quantity</th><th>Cost basis</th><th>Sell proceeds</th><th>Realized wins</th><th>Realized losses</th><th>Net realized P/L</th></tr></thead>
+              <thead><tr>{realizedLotColumns.map((column) => <th key={column.key}><button type="button" className="sortable-header" onClick={() => setLotSort((current) => nextSort(current, column.key))}>{sortButtonLabel(lotSort, column.key, column.label)}</button></th>)}</tr></thead>
               <tbody>
-                {analysis.selectedTickerRealizedLots.length ? analysis.selectedTickerRealizedLots.map((lot, index) => (
+                {realizedLots.length ? realizedLots.map((lot, index) => (
                   <tr key={`${lot.acquiredDate}-${lot.soldDate}-${lot.ticker}-${lot.quantity}-${index}`}>
                     <td>{lot.acquiredDate}</td>
                     <td>{lot.soldDate}</td>
@@ -157,9 +165,9 @@ export function AnalyzePage({ token }: { token: string }) {
       <h2>Current positions</h2>
       <div className="table-frame">
         <table className="portfolio-table positions-table">
-          <thead><tr><th>Ticker</th><th>Provider</th><th>Currency</th><th>Quantity</th><th>Average cost</th><th>Cost basis</th><th>Market price</th><th>Market value</th><th>Unrealized P/L</th><th>P/L %</th><th>Status</th></tr></thead>
+          <thead><tr>{positionColumns.map((column) => <th key={column.key}><button type="button" className="sortable-header" onClick={() => setPositionSort((current) => nextSort(current, column.key))}>{sortButtonLabel(positionSort, column.key, column.label)}</button></th>)}</tr></thead>
           <tbody>
-            {analysis.positions.map((position) => (
+            {positions.map((position) => (
               <tr key={`${position.providerType}-${position.ticker}-${position.currency}`} className={position.reconciliationStatus.startsWith("UNRECONCILED") ? "warning-row" : ""}>
                 <td>{position.ticker}</td>
                 <td>{position.providerType}</td>
@@ -180,6 +188,51 @@ export function AnalyzePage({ token }: { token: string }) {
     </main>
   );
 }
+
+type FilteredColumnKey = "ticker" | "provider" | "currency" | "transactions" | "lots" | "incomeRecords" | "wins" | "losses" | "pnl" | "income";
+type RealizedLotColumnKey = "acquiredDate" | "soldDate" | "ticker" | "provider" | "currency" | "quantity" | "costBasis" | "proceeds" | "wins" | "losses" | "pnl";
+type PositionColumnKey = "ticker" | "provider" | "currency" | "quantity" | "averageCost" | "costBasis" | "marketPrice" | "marketValue" | "unrealized" | "percent" | "status";
+
+const filteredColumns: Array<SortColumn<PortfolioFilteredTickerResult, FilteredColumnKey>> = [
+  { key: "ticker", label: "Ticker", value: (row) => row.ticker },
+  { key: "provider", label: "Provider", value: (row) => row.providerType },
+  { key: "currency", label: "Currency", value: (row) => row.currency },
+  { key: "transactions", label: "Transactions", value: (row) => row.transactionCount },
+  { key: "lots", label: "Realized lots", value: (row) => row.realizedLotCount },
+  { key: "incomeRecords", label: "Income records", value: (row) => row.incomeCount },
+  { key: "wins", label: "Realized wins", value: (row) => row.realizedProfit },
+  { key: "losses", label: "Realized losses", value: (row) => row.realizedLoss },
+  { key: "pnl", label: "Net realized P/L", value: (row) => row.realizedPnl },
+  { key: "income", label: "Net income", value: (row) => row.income }
+];
+
+const realizedLotColumns: Array<SortColumn<PortfolioRealizedLotDetail, RealizedLotColumnKey>> = [
+  { key: "acquiredDate", label: "Acquired date", value: (row) => row.acquiredDate },
+  { key: "soldDate", label: "Sell date", value: (row) => row.soldDate },
+  { key: "ticker", label: "Ticker", value: (row) => row.ticker },
+  { key: "provider", label: "Provider", value: (row) => row.providerType },
+  { key: "currency", label: "Currency", value: (row) => row.currency },
+  { key: "quantity", label: "Quantity", value: (row) => row.quantity },
+  { key: "costBasis", label: "Cost basis", value: (row) => row.costBasis },
+  { key: "proceeds", label: "Sell proceeds", value: (row) => row.grossProceeds },
+  { key: "wins", label: "Realized wins", value: (row) => row.realizedProfit },
+  { key: "losses", label: "Realized losses", value: (row) => row.realizedLoss },
+  { key: "pnl", label: "Net realized P/L", value: (row) => row.realizedPnl }
+];
+
+const positionColumns: Array<SortColumn<PortfolioPosition, PositionColumnKey>> = [
+  { key: "ticker", label: "Ticker", value: (row) => row.ticker },
+  { key: "provider", label: "Provider", value: (row) => row.providerType },
+  { key: "currency", label: "Currency", value: (row) => row.currency },
+  { key: "quantity", label: "Quantity", value: (row) => row.quantity },
+  { key: "averageCost", label: "Average cost", value: (row) => row.averageCost },
+  { key: "costBasis", label: "Cost basis", value: (row) => row.remainingCostBasis },
+  { key: "marketPrice", label: "Market price", value: (row) => row.currentPrice },
+  { key: "marketValue", label: "Market value", value: (row) => row.marketValue },
+  { key: "unrealized", label: "Unrealized P/L", value: (row) => row.unrealizedPnl },
+  { key: "percent", label: "P/L %", value: (row) => row.unrealizedPnlPercent },
+  { key: "status", label: "Status", value: (row) => row.reconciliationStatus }
+];
 
 function Summary({ title, value }: { title: string; value: string }) {
   return <div className="summary-panel"><span className="panel-title">{title}</span><strong>{value}</strong></div>;

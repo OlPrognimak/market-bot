@@ -1,6 +1,8 @@
 package com.prognimak.marketbot.news.service;
 
 import com.prognimak.marketbot.news.model.NewsResearchSource;
+import com.prognimak.marketbot.system.entity.SystemCredentialType;
+import com.prognimak.marketbot.system.service.SystemApiCredentialService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -19,13 +21,16 @@ public class OpenAiWebResearchClient {
     private final WebClient webClient;
     private final String apiKey;
     private final String model;
+    private final SystemApiCredentialService credentialService;
 
     public OpenAiWebResearchClient(
             WebClient.Builder builder,
+            SystemApiCredentialService credentialService,
             @Value("${spring.ai.openai.api-key:}") String apiKey,
             @Value("${market-bot.news-monitoring.web-research-model:gpt-5-mini}") String model
     ) {
         this.webClient = builder.baseUrl("https://api.openai.com/v1").build();
+        this.credentialService = credentialService;
         this.apiKey = apiKey;
         this.model = model;
     }
@@ -33,7 +38,7 @@ public class OpenAiWebResearchClient {
     public WebResearchResult research(String prompt) {
         JsonNode response = webClient.post()
                 .uri("/responses")
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey())
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(Map.of(
                         "model", model,
@@ -58,6 +63,11 @@ public class OpenAiWebResearchClient {
 
     public String model() {
         return model;
+    }
+
+    private String apiKey() {
+        String activeCredential = credentialService.activeSecret(SystemCredentialType.AI_PROVIDER);
+        return activeCredential == null || activeCredential.isBlank() ? apiKey : activeCredential;
     }
 
     private String extractOutputText(JsonNode response) {

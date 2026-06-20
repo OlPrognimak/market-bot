@@ -31,6 +31,7 @@ public class PortfolioAnalysisService {
     private final PortfolioRealizedLotRepository realizedLotRepository;
     private final PortfolioIncomeRepository incomeRepository;
     private final PortfolioMarketPriceService marketPriceService;
+    private final ProviderSymbolMappingService symbolMappingService;
 
     @Transactional(readOnly = true)
     public PortfolioAnalysisResponse analyze(Long userId) {
@@ -146,7 +147,7 @@ public class PortfolioAnalysisService {
     @Transactional(readOnly = true)
     public PortfolioMarkerResponse markers(Long userId, String ticker) {
         String normalizedTicker = ticker.toUpperCase(Locale.ROOT);
-        List<String> candidates = PortfolioTickerAliases.revolutCandidates(normalizedTicker);
+        List<String> candidates = symbolMappingService.sourceCandidatesForMarketSymbol(normalizedTicker);
         List<PortfolioMarkerResponse.Marker> markers = transactionRepository
                 .findByUserIdAndTickerInOrderByEventTimeAsc(userId, candidates).stream()
                 .filter(item -> item.getPricePerShare() != null)

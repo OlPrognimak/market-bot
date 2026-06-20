@@ -6,8 +6,12 @@ import type {
   AuthSession,
   CatalogItemPayload,
   CryptoCatalogItem,
+  ProviderSymbolMapping,
+  ProviderSymbolMappingPayload,
   SignUpPayload,
   StockCatalogItem,
+  SystemApiCredential,
+  SystemApiCredentialPayload,
   SymbolValidationResult,
   UserPayload,
   WatchlistCatalogItem
@@ -173,6 +177,48 @@ export async function deleteStockCatalogItem(token: string, id: number): Promise
 
 export async function deleteCryptoCatalogItem(token: string, id: number): Promise<void> {
   await authFetch(token, `/api/catalog/crypto/${id}`, { method: "DELETE" });
+}
+
+export async function fetchProviderSymbolMappings(token: string): Promise<ProviderSymbolMapping[]> {
+  const response = await authFetch(token, "/api/system/symbol-mappings");
+  return response.json() as Promise<ProviderSymbolMapping[]>;
+}
+
+export async function saveProviderSymbolMapping(
+  token: string,
+  payload: ProviderSymbolMappingPayload,
+  id?: number
+): Promise<ProviderSymbolMapping> {
+  const response = await authFetch(token, id ? `/api/system/symbol-mappings/${id}` : "/api/system/symbol-mappings", {
+    method: id ? "PUT" : "POST",
+    body: JSON.stringify(payload)
+  });
+  return response.json() as Promise<ProviderSymbolMapping>;
+}
+
+export async function deleteProviderSymbolMapping(token: string, id: number): Promise<void> {
+  await authFetch(token, `/api/system/symbol-mappings/${id}`, { method: "DELETE" });
+}
+
+export async function fetchSystemApiCredentials(token: string): Promise<SystemApiCredential[]> {
+  const response = await authFetch(token, "/api/system/api-credentials");
+  return response.json() as Promise<SystemApiCredential[]>;
+}
+
+export async function saveSystemApiCredential(
+  token: string,
+  payload: SystemApiCredentialPayload,
+  id?: number
+): Promise<SystemApiCredential> {
+  const response = await authFetch(token, id ? `/api/system/api-credentials/${id}` : "/api/system/api-credentials", {
+    method: id ? "PUT" : "POST",
+    body: JSON.stringify(payload)
+  });
+  return response.json() as Promise<SystemApiCredential>;
+}
+
+export async function deleteSystemApiCredential(token: string, id: number): Promise<void> {
+  await authFetch(token, `/api/system/api-credentials/${id}`, { method: "DELETE" });
 }
 
 export async function authFetch(token: string, path: string, init: RequestInit = {}): Promise<Response> {

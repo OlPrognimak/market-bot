@@ -4,6 +4,7 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { fetchWatchlistCatalog, validateWatchlistSymbol } from "@/lib/auth";
 import { ALL_FILTER_VALUE } from "@/lib/filterConstants";
+import { nextSort, sortButtonLabel, sortRows, type SortColumn, type SortState } from "@/lib/tableSort";
 import type { AppUser, UserProperty, WatchlistCatalogItem } from "../types";
 
 export type WatchlistRow = {
@@ -59,6 +60,7 @@ export function WatchlistEditor({
   const [pendingValidationRows, setPendingValidationRows] = useState<Record<number, boolean>>({});
   const [pickerFilter, setPickerFilter] = useState("");
   const [tableFilters, setTableFilters] = useState<WatchlistTableFilters>(emptyTableFilters);
+  const [sort, setSort] = useState<SortState<WatchlistColumnKey>>({ key: "symbol", direction: "asc" });
 
   const selectedSymbols = useMemo(
     () => new Set(rows.map((row) => normalizeSymbol(row.propertyName)).filter(Boolean)),
@@ -82,7 +84,7 @@ export function WatchlistEditor({
     const symbolFilter = tableFilters.symbol.trim().toLowerCase();
     const nameFilter = tableFilters.name.trim().toLowerCase();
 
-    return rows
+    const filtered = rows
       .map((row, index) => ({ row, index }))
       .filter(({ row }) => {
         if (tableFilters.status === "ENABLED" && !row.enabled) {
@@ -99,7 +101,8 @@ export function WatchlistEditor({
         }
         return true;
       });
-  }, [rows, tableFilters]);
+    return sortRows(filtered, sort, watchlistColumns);
+  }, [rows, sort, tableFilters]);
 
   const validationInvalid = rows.some((row, index) =>
     row.enabled
@@ -275,9 +278,13 @@ export function WatchlistEditor({
         <table className="settings-table">
           <thead>
             <tr>
-              <th>Symbol</th>
-              <th>Name</th>
-              <th>Enabled</th>
+              {watchlistColumns.map((column) => (
+                <th key={column.key}>
+                  <button type="button" className="sortable-header" onClick={() => setSort((current) => nextSort(current, column.key))}>
+                    {sortButtonLabel(sort, column.key, column.label)}
+                  </button>
+                </th>
+              ))}
               <th>Edit</th>
               <th>Delete</th>
             </tr>
@@ -437,6 +444,15 @@ export function WatchlistEditor({
     );
   }
 }
+
+type WatchlistRowEntry = { row: WatchlistRow; index: number };
+type WatchlistColumnKey = "symbol" | "name" | "enabled";
+
+const watchlistColumns: Array<SortColumn<WatchlistRowEntry, WatchlistColumnKey>> = [
+  { key: "symbol", label: "Symbol", value: (entry) => entry.row.propertyName },
+  { key: "name", label: "Name", value: (entry) => entry.row.propertyValue },
+  { key: "enabled", label: "Enabled", value: (entry) => entry.row.enabled }
+];
 
 export function watchlistToRows(properties: AppUser["properties"], propertyType: UserProperty["propertyType"] = "WATCHLIST"): WatchlistRow[] {
   return properties

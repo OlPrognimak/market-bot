@@ -23,6 +23,7 @@ public class PortfolioSchemaRepair implements ApplicationRunner {
         repairProviderTypeConstraint("portfolio_income");
         repairImportSchemaConstraint();
         repairTradeRepublicSymbols();
+        repairRevolutSymbols();
     }
 
     private void repairProviderTypeConstraint(String tableName) {
@@ -53,91 +54,59 @@ public class PortfolioSchemaRepair implements ApplicationRunner {
     }
 
     private void repairTradeRepublicSymbols() {
-        int transactionRows = jdbcTemplate.update("""
-                update marketbot.portfolio_transaction
-                   set ticker = 'C8PX.DE'
-                 where provider_type = 'TRADE_REPUBLIC'
-                   and ticker = 'IE0000ZL1RD2'
-                """);
-        transactionRows += jdbcTemplate.update("""
-                update marketbot.portfolio_transaction
-                   set ticker = 'ENR.DE'
-                 where provider_type = 'TRADE_REPUBLIC'
-                   and ticker in ('US82621A2033', 'SMNEY')
-                """);
-        transactionRows += jdbcTemplate.update("""
-                update marketbot.portfolio_transaction
-                   set ticker = 'MRK.DE'
-                 where provider_type = 'TRADE_REPUBLIC'
-                   and ticker = 'DE0006599905'
-                """);
-        transactionRows += jdbcTemplate.update("""
-                update marketbot.portfolio_transaction
-                   set ticker = 'BAC'
-                 where provider_type = 'TRADE_REPUBLIC'
-                   and ticker = 'US0605051046'
-                """);
-        transactionRows += jdbcTemplate.update("""
-                update marketbot.portfolio_transaction
-                   set ticker = 'JPM'
-                 where provider_type = 'TRADE_REPUBLIC'
-                   and ticker = 'US46625H1005'
-                """);
-        transactionRows += jdbcTemplate.update("""
-                update marketbot.portfolio_transaction
-                   set ticker = 'RMBS'
-                 where provider_type = 'TRADE_REPUBLIC'
-                   and ticker = 'US7509171069'
-                """);
-        transactionRows += jdbcTemplate.update("""
-                update marketbot.portfolio_transaction
-                   set ticker = 'SPCX'
-                 where provider_type = 'TRADE_REPUBLIC'
-                   and ticker = 'US84615Q1031'
-                """);
-        int realizedRows = jdbcTemplate.update("""
-                update marketbot.portfolio_realized_lot
-                   set symbol = 'C8PX.DE'
-                 where provider_type = 'TRADE_REPUBLIC'
-                   and symbol = 'IE0000ZL1RD2'
-                """);
-        realizedRows += jdbcTemplate.update("""
-                update marketbot.portfolio_realized_lot
-                   set symbol = 'ENR.DE'
-                 where provider_type = 'TRADE_REPUBLIC'
-                   and symbol in ('US82621A2033', 'SMNEY')
-                """);
-        realizedRows += jdbcTemplate.update("""
-                update marketbot.portfolio_realized_lot
-                   set symbol = 'MRK.DE'
-                 where provider_type = 'TRADE_REPUBLIC'
-                   and symbol = 'DE0006599905'
-                """);
-        realizedRows += jdbcTemplate.update("""
-                update marketbot.portfolio_realized_lot
-                   set symbol = 'BAC'
-                 where provider_type = 'TRADE_REPUBLIC'
-                   and symbol = 'US0605051046'
-                """);
-        realizedRows += jdbcTemplate.update("""
-                update marketbot.portfolio_realized_lot
-                   set symbol = 'JPM'
-                 where provider_type = 'TRADE_REPUBLIC'
-                   and symbol = 'US46625H1005'
-                """);
-        realizedRows += jdbcTemplate.update("""
-                update marketbot.portfolio_realized_lot
-                   set symbol = 'RMBS'
-                 where provider_type = 'TRADE_REPUBLIC'
-                   and symbol = 'US7509171069'
-                """);
-        realizedRows += jdbcTemplate.update("""
-                update marketbot.portfolio_realized_lot
-                   set symbol = 'SPCX'
-                 where provider_type = 'TRADE_REPUBLIC'
-                   and symbol = 'US84615Q1031'
-                """);
-        log.info("Repaired Trade Republic aliases: {} transactions, {} realized lots.",
-                transactionRows, realizedRows);
+        String[][] aliases = {
+                {"IE0000ZL1RD2", "C8PX.DE"},
+                {"US82621A2033", "ENR.DE"},
+                {"SMNEY", "ENR.DE"},
+                {"DE0006599905", "MRK.DE"},
+                {"GB0002634946", "BSP.DE"},
+                {"CA53680V1076", "LSPD.TO"},
+                {"US0258161092", "AXP"},
+                {"US0605051046", "BAC"},
+                {"US46625H1005", "JPM"},
+                {"US7069151055", "PENG"},
+                {"US7509171069", "RMBS"},
+                {"US84615Q1031", "SPCX"}
+        };
+        RepairCounts counts = repairAliases("TRADE_REPUBLIC", aliases);
+        log.info("Repaired Trade Republic aliases: {} transactions, {} realized lots, {} income rows.",
+                counts.transactionRows(), counts.realizedRows(), counts.incomeRows());
+    }
+
+    private void repairRevolutSymbols() {
+        String[][] aliases = {
+                {"ABJ", "ABBN.SW"},
+                {"ASME", "ASML"},
+                {"SGM", "STM"},
+                {"IRBTQ", "IRBT"},
+                {"AIR1", "AIR.PA"},
+                {"ENR1", "ENR.DE"},
+                {"SEJ1", "SAF.PA"},
+                {"XFB", "XFAB.PA"}
+        };
+        RepairCounts counts = repairAliases("REVOLUT", aliases);
+        log.info("Repaired Revolut aliases: {} transactions, {} realized lots, {} income rows.",
+                counts.transactionRows(), counts.realizedRows(), counts.incomeRows());
+    }
+
+    private RepairCounts repairAliases(String providerType, String[][] aliases) {
+        int transactionRows = 0;
+        int realizedRows = 0;
+        int incomeRows = 0;
+        for (String[] alias : aliases) {
+            transactionRows += repairAlias("portfolio_transaction", "ticker", providerType, alias[0], alias[1]);
+            realizedRows += repairAlias("portfolio_realized_lot", "symbol", providerType, alias[0], alias[1]);
+            incomeRows += repairAlias("portfolio_income", "symbol", providerType, alias[0], alias[1]);
+        }
+        return new RepairCounts(transactionRows, realizedRows, incomeRows);
+    }
+
+    private int repairAlias(String tableName, String columnName, String providerType, String source, String target) {
+        return jdbcTemplate.update("update marketbot." + tableName
+                        + " set " + columnName + " = ? where provider_type = ? and " + columnName + " = ?",
+                target, providerType, source);
+    }
+
+    private record RepairCounts(int transactionRows, int realizedRows, int incomeRows) {
     }
 }

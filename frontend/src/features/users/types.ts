@@ -93,3 +93,44 @@ export type CatalogItemPayload = {
   enabled?: boolean;
   priority?: string | null;
 };
+
+export type PortfolioProviderType = "REVOLUT" | "TRADE_REPUBLIC";
+export type SystemCredentialType = "AI_PROVIDER" | "MARKET_DATA_PROVIDER" | "MESSAGING_PROVIDER";
+
+export type ProviderSymbolMapping = {
+  id: number;
+  providerType: PortfolioProviderType;
+  sourceSymbol: string;
+  sourceSymbolType: string;
+  marketProvider: string;
+  marketSymbol: string;
+  instrumentName?: string | null;
+  currency?: string | null;
+  enabled: boolean;
+  verified: boolean;
+  priority: number;
+};
+
+export type ProviderSymbolMappingPayload = Omit<ProviderSymbolMapping, "id">;
+
+export type SystemApiCredential = {
+  id: number;
+  credentialType: SystemCredentialType;
+  providerName: string;
+  displayName: string;
+  maskedSecret: string;
+  hasSecret: boolean;
+  enabled: boolean;
+  active: boolean;
+  description?: string | null;
+};
+
+export type SystemApiCredentialPayload = {
+  credentialType: SystemCredentialType;
+  providerName: string;
+  displayName: string;
+  secretValue?: string | null;
+  enabled: boolean;
+  active: boolean;
+  description?: string | null;
+};

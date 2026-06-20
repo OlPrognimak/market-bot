@@ -4,6 +4,7 @@ import com.prognimak.marketbot.client.YahooFinanceClient;
 import com.prognimak.marketbot.entity.QuoteEntity;
 import com.prognimak.marketbot.entity.StockCatalogEntity;
 import com.prognimak.marketbot.model.Quote;
+import com.prognimak.marketbot.portfolio.model.PortfolioProviderType;
 import com.prognimak.marketbot.repository.QuoteRepository;
 import com.prognimak.marketbot.repository.StockCatalogRepository;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +28,7 @@ public class PortfolioMarketPriceService {
     private final QuoteRepository quoteRepository;
     private final StockCatalogRepository stockCatalogRepository;
     private final YahooFinanceClient yahooFinanceClient;
+    private final ProviderSymbolMappingService symbolMappingService;
 
     /**
      * Resolves the latest market price for a provider ticker.
@@ -64,7 +66,8 @@ public class PortfolioMarketPriceService {
     private List<String> candidates(String ticker, String currency) {
         String normalizedTicker = ticker.trim().toUpperCase(Locale.ROOT);
         LinkedHashSet<String> candidates = new LinkedHashSet<>();
-        candidates.addAll(PortfolioTickerAliases.marketCandidates(normalizedTicker));
+        candidates.addAll(symbolMappingService.marketCandidates(PortfolioProviderType.REVOLUT, normalizedTicker));
+        candidates.addAll(symbolMappingService.marketCandidates(PortfolioProviderType.TRADE_REPUBLIC, normalizedTicker));
         stockCatalogRepository.findBySymbolIgnoreCase(normalizedTicker)
                 .map(StockCatalogEntity::getSymbol)
                 .ifPresent(candidates::add);

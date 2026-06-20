@@ -792,6 +792,23 @@ button:disabled {
   background: var(--surface);
 }
 
+.sortable-header {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  padding: 0;
+  text-align: inherit;
+  cursor: pointer;
+}
+
+.sortable-header:hover,
+.sortable-header:focus-visible {
+  text-decoration: underline;
+}
+
 .settings-table-frame {
   max-height: min(46vh, 520px);
   overflow: auto;

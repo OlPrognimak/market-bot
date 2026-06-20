@@ -30,6 +30,7 @@ public class PortfolioImportService {
     private final PortfolioTransactionRepository transactionRepository;
     private final PortfolioRealizedLotRepository realizedLotRepository;
     private final PortfolioIncomeRepository incomeRepository;
+    private final ProviderSymbolMappingService symbolMappingService;
 
     @Transactional
     public PortfolioImportResponse importFile(
@@ -108,7 +109,7 @@ public class PortfolioImportService {
             entity.setRecordFingerprint(fingerprint);
             entity.setSourceRowNumber(index + 1);
             entity.setEventTime(Instant.parse(row.get(0)));
-            entity.setTicker(blankToNull(row.get(1)));
+            entity.setTicker(revolutSymbolOrNull(row.get(1)));
             entity.setTransactionType(row.get(2).trim());
             entity.setQuantity(decimalOrNull(row.get(3)));
             entity.setPricePerShare(moneyOrNull(row.get(4)));
@@ -162,7 +163,7 @@ public class PortfolioImportService {
             entity.setRecordFingerprint(fingerprint);
             entity.setSourceRowNumber(index + 1);
             entity.setEventTime(Instant.parse(value(row, header, "datetime")));
-            entity.setTicker(PortfolioTickerAliases.tradeRepublicMarketSymbol(value(row, header, "symbol")));
+            entity.setTicker(symbolMappingService.resolveMarketSymbol(providerType, value(row, header, "symbol")));
             entity.setTransactionType(type);
             entity.setQuantity(decimal(value(row, header, "shares")).abs());
             entity.setPricePerShare(decimalOrNull(value(row, header, "price")));
@@ -217,7 +218,7 @@ public class PortfolioImportService {
             entity.setSourceRowNumber(index + 1);
             entity.setAcquiredDate(soldDate);
             entity.setSoldDate(soldDate);
-            entity.setSymbol(PortfolioTickerAliases.tradeRepublicMarketSymbol(value(row, header, "ISIN")));
+            entity.setSymbol(symbolMappingService.resolveMarketSymbol(providerType, value(row, header, "ISIN")));
             entity.setSecurityName(normalizeName(value(row, header, "Name")));
             entity.setIsin(value(row, header, "ISIN"));
             entity.setCountry("");
@@ -306,7 +307,7 @@ public class PortfolioImportService {
         entity.setSourceRowNumber(rowNumber);
         entity.setAcquiredDate(LocalDate.parse(row.get(0)));
         entity.setSoldDate(LocalDate.parse(row.get(1)));
-        entity.setSymbol(row.get(2).trim());
+        entity.setSymbol(symbolMappingService.resolveMarketSymbol(providerType, row.get(2)));
         entity.setSecurityName(normalizeName(row.get(3)));
         entity.setIsin(row.get(4).trim());
         entity.setCountry(row.get(5).trim());
@@ -336,7 +337,7 @@ public class PortfolioImportService {
         entity.setOccurrenceOrdinal(occurrence);
         entity.setSourceRowNumber(rowNumber);
         entity.setIncomeDate(LocalDate.parse(row.get(0)));
-        entity.setSymbol(row.get(1).trim());
+        entity.setSymbol(symbolMappingService.resolveMarketSymbol(providerType, row.get(1)));
         entity.setSecurityName(normalizeName(row.get(2)));
         entity.setIsin(row.get(3).trim());
         entity.setCountry(row.get(4).trim());
@@ -474,6 +475,11 @@ public class PortfolioImportService {
 
     private static String blankToNull(String value) {
         return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private String revolutSymbolOrNull(String value) {
+        String normalized = blankToNull(value);
+        return normalized == null ? null : symbolMappingService.resolveMarketSymbol(PortfolioProviderType.REVOLUT, normalized);
     }
 
     private static void requireHeader(List<String> actual, List<String> expected) {

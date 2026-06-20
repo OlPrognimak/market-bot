@@ -1,6 +1,7 @@
 "use client";
 
-import { ChangeEvent, useEffect, useState } from "react";
+import { ChangeEvent, useEffect, useMemo, useState } from "react";
+import { nextSort, sortButtonLabel, sortRows, type SortColumn, type SortState } from "@/lib/tableSort";
 import { fetchPortfolioImports, uploadPortfolioCsv } from "../api";
 import type { PortfolioImport, PortfolioProviderType } from "../types";
 
@@ -11,8 +12,10 @@ export function ImportDataPage({ token }: { token: string }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [sort, setSort] = useState<SortState<ImportColumnKey>>({ key: "imported", direction: "desc" });
 
   const load = async () => setImports(await fetchPortfolioImports(token));
+  const sortedImports = useMemo(() => sortRows(imports, sort, importColumns), [imports, sort]);
 
   useEffect(() => {
     load().catch((reason) => setError(reason instanceof Error ? reason.message : "Could not load imports"));
@@ -78,17 +81,17 @@ export function ImportDataPage({ token }: { token: string }) {
         <table className="portfolio-table">
           <thead>
             <tr>
-              <th>Imported</th>
-              <th>Provider</th>
-              <th>Schema</th>
-              <th>File</th>
-              <th>Total</th>
-              <th>New</th>
-              <th>Skipped</th>
+              {importColumns.map((column) => (
+                <th key={column.key}>
+                  <button type="button" className="sortable-header" onClick={() => setSort((current) => nextSort(current, column.key))}>
+                    {sortButtonLabel(sort, column.key, column.label)}
+                  </button>
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
-            {imports.map((item) => (
+            {sortedImports.map((item) => (
               <tr key={item.id}>
                 <td>{item.importedAt ? new Date(item.importedAt).toLocaleString() : "-"}</td>
                 <td>{item.providerType}</td>
@@ -106,3 +109,15 @@ export function ImportDataPage({ token }: { token: string }) {
     </main>
   );
 }
+
+type ImportColumnKey = "imported" | "provider" | "schema" | "file" | "total" | "new" | "skipped";
+
+const importColumns: Array<SortColumn<PortfolioImport, ImportColumnKey>> = [
+  { key: "imported", label: "Imported", value: (row) => row.importedAt },
+  { key: "provider", label: "Provider", value: (row) => row.providerType },
+  { key: "schema", label: "Schema", value: (row) => row.schemaType },
+  { key: "file", label: "File", value: (row) => row.originalFileName },
+  { key: "total", label: "Total", value: (row) => row.totalRows },
+  { key: "new", label: "New", value: (row) => row.importedRows },
+  { key: "skipped", label: "Skipped", value: (row) => row.skippedRows }
+];
