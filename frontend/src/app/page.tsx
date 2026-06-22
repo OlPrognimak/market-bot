@@ -8,6 +8,7 @@ import { FuturesDashboardPage } from "@/features/dashboard/components/FuturesDas
 import { CatalogManagementPage } from "@/features/users/components/CatalogManagementPage";
 import { LoginPage } from "@/features/users/components/LoginPage";
 import { SignUpPage } from "@/features/users/components/SignUpPage";
+import { SystemSettingsPage } from "@/features/users/components/SystemSettingsPage";
 import { UserManagementPage } from "@/features/users/components/UserManagementPage";
 import { UserSettingsPage } from "@/features/users/components/UserSettingsPage";
 import { AnalyzePage } from "@/features/portfolio/components/AnalyzePage";
@@ -15,7 +16,7 @@ import { ImportDataPage } from "@/features/portfolio/components/ImportDataPage";
 import { clearSession, fetchCurrentUser, loadStoredSession, storeSession } from "@/lib/auth";
 import type { AuthSession } from "@/features/users/types";
 
-type AppView = "dashboard" | "crypto" | "futures" | "import" | "analyze" | "users" | "settings" | "catalog";
+type AppView = "dashboard" | "crypto" | "futures" | "import" | "analyze" | "users" | "settings" | "catalog" | "system";
 
 export default function Home() {
   const [session, setSession] = useState<AuthSession | null>(null);
@@ -123,6 +124,16 @@ export default function Home() {
           </header>
           <CatalogManagementPage token={session.token} />
         </main>
+      ) : view === "system" && session.user.role === "ADMIN" ? (
+        <main className="dashboard">
+          <header className="dashboard-header">
+            <div>
+              <h1>System Settings</h1>
+              <p>Manage provider symbol mappings and selectable API credentials.</p>
+            </div>
+          </header>
+          <SystemSettingsPage token={session.token} />
+        </main>
       ) : (
         <DashboardPage
           token={session.token}
@@ -158,7 +169,10 @@ function AppShell({
     { view: "analyze", label: "Analyze" },
     { view: "settings", label: "Settings" },
     { view: "users", label: session.user.role === "ADMIN" ? "Users" : "Account" },
-    ...(session.user.role === "ADMIN" ? [{ view: "catalog" as AppView, label: "Catalog" }] : [])
+    ...(session.user.role === "ADMIN" ? [
+      { view: "catalog" as AppView, label: "Catalog" },
+      { view: "system" as AppView, label: "System settings" }
+    ] : [])
   ];
 
   return (

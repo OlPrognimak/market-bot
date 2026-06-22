@@ -1,7 +1,8 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { createUser, deleteUser, fetchUsers, updateCurrentUser, updateUser } from "@/lib/auth";
+import { nextSort, sortButtonLabel, sortRows, type SortColumn, type SortState } from "@/lib/tableSort";
 import type { AppUser, UserPayload, UserProperty, UserRole } from "../types";
 import { WatchlistEditor, watchlistProperties, watchlistToRows, type WatchlistRow } from "./WatchlistEditor";
 
@@ -67,6 +68,8 @@ export function UserManagementPage({ token, currentUser, onCurrentUserUpdated }:
   const [dialogMode, setDialogMode] = useState<"create" | "edit" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [sort, setSort] = useState<SortState<UserColumnKey>>({ key: "username", direction: "asc" });
+  const sortedUsers = useMemo(() => sortRows(users, sort, userColumns), [sort, users]);
 
   const loadUsers = async () => {
     setError(null);
@@ -156,15 +159,18 @@ export function UserManagementPage({ token, currentUser, onCurrentUserUpdated }:
           <table className="users-table">
             <thead>
               <tr>
-                <th>Username</th>
-                <th>Name</th>
-                <th>Role</th>
-                <th>Status</th>
+                {userColumns.map((column) => (
+                  <th key={column.key}>
+                    <button type="button" className="sortable-header" onClick={() => setSort((current) => nextSort(current, column.key))}>
+                      {sortButtonLabel(sort, column.key, column.label)}
+                    </button>
+                  </th>
+                ))}
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {users.map((user) => (
+              {sortedUsers.map((user) => (
                 <tr key={user.id}>
                   <td>{user.username}</td>
                   <td>{user.displayName}</td>
@@ -334,6 +340,15 @@ export function UserManagementPage({ token, currentUser, onCurrentUserUpdated }:
     );
   }
 }
+
+type UserColumnKey = "username" | "name" | "role" | "status";
+
+const userColumns: Array<SortColumn<AppUser, UserColumnKey>> = [
+  { key: "username", label: "Username", value: (row) => row.username },
+  { key: "name", label: "Name", value: (row) => row.displayName },
+  { key: "role", label: "Role", value: (row) => row.role },
+  { key: "status", label: "Status", value: (row) => row.enabled }
+];
 
 function userToForm(user: AppUser): FormState {
   return {

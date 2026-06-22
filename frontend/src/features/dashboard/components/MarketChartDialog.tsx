@@ -51,6 +51,7 @@ export function MarketChartDialog({ token, result, onClose }: Props) {
   const [focusedPortfolioMarker, setFocusedPortfolioMarker] = useState<PortfolioMarker | null>(null);
   const [maximized, setMaximized] = useState(false);
   const [markerError, setMarkerError] = useState<string | null>(null);
+  const [hoverTimeLabel, setHoverTimeLabel] = useState<{ text: string; x: number } | null>(null);
 
   useEffect(() => {
     if (!result) {
@@ -63,6 +64,7 @@ export function MarketChartDialog({ token, result, onClose }: Props) {
     setFocusedPortfolioMarker(null);
     setMaximized(false);
     setMarkerError(null);
+    setHoverTimeLabel(null);
   }, [result?.symbol]);
 
   useEffect(() => {
@@ -154,7 +156,11 @@ export function MarketChartDialog({ token, result, onClose }: Props) {
       },
       crosshair: {
         horzLine: { color: "#687783" },
-        vertLine: { color: "#687783" }
+        vertLine: {
+          color: "#687783",
+          labelVisible: false,
+          labelBackgroundColor: "#26323d"
+        }
       }
     });
     const resizeObserver = new ResizeObserver(() => {
@@ -164,6 +170,8 @@ export function MarketChartDialog({ token, result, onClose }: Props) {
       }
     });
     resizeObserver.observe(chartContainerRef.current);
+
+    let markerById: Map<string, PortfolioMarker> | null = null;
 
     if (chartMode === "candles" && candles) {
       const series = chartApi.addSeries(CandlestickSeries, {
@@ -179,7 +187,7 @@ export function MarketChartDialog({ token, result, onClose }: Props) {
     } else if (chart) {
       const chartPoints = toLineData(chart);
       const latestValue = chartPoints.at(-1)?.value ?? 0;
-      const lineColor = latestValue >= 0 ? "#147a46" : "#b42318";
+      const lineColor = latestValue > 0 ? "#147a46" : latestValue < 0 ? "#b42318" : "#65717f";
       const series = chartApi.addSeries(LineSeries, {
         color: lineColor,
         lineWidth: 2,
@@ -205,14 +213,8 @@ export function MarketChartDialog({ token, result, onClose }: Props) {
       }) as ISeriesApi<"Line", Time>;
       series.setData(chartPoints);
       if (showPortfolioMarkers && portfolioMarkers) {
-        const markerById = new Map(portfolioMarkers.markers.map((marker) => [String(marker.id), marker]));
+        markerById = new Map(portfolioMarkers.markers.map((marker) => [String(marker.id), marker]));
         createSeriesMarkers(series, toMovementSeriesMarkers(chart, portfolioMarkers));
-        chartApi.subscribeCrosshairMove((param) => {
-          const hoveredId = param.hoveredInfo?.objectKind === "series-marker"
-            ? String(param.hoveredInfo.objectId ?? param.hoveredObjectId ?? "")
-            : String(param.hoveredObjectId ?? "");
-          setFocusedPortfolioMarker(markerById.get(hoveredId) ?? null);
-        });
       }
       series.createPriceLine({
         price: 0,
@@ -223,10 +225,31 @@ export function MarketChartDialog({ token, result, onClose }: Props) {
         title: "0.00%"
       });
     }
+    chartApi.subscribeCrosshairMove((param) => {
+      const container = chartContainerRef.current;
+      if (!container || !param.point || param.time === undefined) {
+        setHoverTimeLabel(null);
+        setFocusedPortfolioMarker(null);
+        return;
+      }
+
+      setHoverTimeLabel({
+        text: formatChartTime(param.time, activeTimeZone),
+        x: container.offsetLeft + param.point.x
+      });
+
+      if (markerById) {
+        const hoveredId = param.hoveredInfo?.objectKind === "series-marker"
+          ? String(param.hoveredInfo.objectId ?? param.hoveredObjectId ?? "")
+          : String(param.hoveredObjectId ?? "");
+        setFocusedPortfolioMarker(markerById.get(hoveredId) ?? null);
+      }
+    });
     chartApi.timeScale().fitContent();
 
     return () => {
       resizeObserver.disconnect();
+      setHoverTimeLabel(null);
       destroyChart(chartApi);
     };
   }, [candles, chart, chartMode, portfolioMarkers, result, showPortfolioMarkers]);
@@ -283,6 +306,11 @@ export function MarketChartDialog({ token, result, onClose }: Props) {
 
         <div className="chart-panel">
           <div ref={chartContainerRef} className="lightweight-chart" />
+          {hoverTimeLabel ? (
+            <div className="chart-hover-time-label" style={{ left: hoverTimeLabel.x }}>
+              {hoverTimeLabel.text}
+            </div>
+          ) : null}
           {loading ? <div className="chart-overlay">Loading chart</div> : null}
           {!loading && error ? <div className="chart-overlay error">{error}</div> : null}
           {!loading && !error && activePointCount === 0 ? <div className="chart-overlay">No data for this range</div> : null}
@@ -421,8 +449,9 @@ function formatChartDate(value: string, timeZone = CHART_TIME_ZONE): string {
 }
 
 function formatChartTime(value: Time, timeZone = CHART_TIME_ZONE): string {
-  if (typeof value !== "number") {
-    return value.toString();
+  const date = timeToDate(value);
+  if (!date) {
+    return String(value);
   }
 
   return new Intl.DateTimeFormat("de-DE", {
@@ -431,7 +460,21 @@ function formatChartTime(value: Time, timeZone = CHART_TIME_ZONE): string {
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit"
-  }).format(new Date(value * 1000));
+  }).format(date);
+}
+
+function timeToDate(value: Time): Date | null {
+  if (typeof value === "number") {
+    return new Date(value * 1000);
+  }
+  if (typeof value === "string") {
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+  if ("year" in value && "month" in value && "day" in value) {
+    return new Date(Date.UTC(value.year, value.month - 1, value.day));
+  }
+  return null;
 }
 
 function toneClass(value: number): string {

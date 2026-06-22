@@ -27,6 +27,12 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+/**
+ * Builds and persists adaptive per-share trend profiles from historical scanner observations.
+ *
+ * <p>The service backtests controlled candidate weight profiles against future price movement,
+ * persists the best usable result, and creates a default fallback row when history is insufficient.</p>
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -38,6 +44,9 @@ public class StockTrendCalibrationService {
     private final MarketTrendService trendService;
     private final StockTrendProfileService profileService;
 
+    /**
+     * Runs adaptive-profile recalibration according to the configured schedule when enabled.
+     */
     @Scheduled(cron = "${market-bot.trend.recalibration-cron:0 15 2 * * *}",
             zone = "${market-bot.trend.recalibration-zone:Europe/Berlin}")
     @Transactional
@@ -47,6 +56,9 @@ public class StockTrendCalibrationService {
         }
     }
 
+    /**
+     * Optionally recalibrates profiles after application startup so enabled shares have profile rows.
+     */
     @EventListener(ApplicationReadyEvent.class)
     @Transactional
     public void recalibrateOnStartup() {
@@ -55,6 +67,14 @@ public class StockTrendCalibrationService {
         }
     }
 
+    /**
+     * Recalibrates every enabled stock and refreshes the runtime profile cache.
+     *
+     * <p>Shares without sufficient history receive a persisted default profile if none exists.
+     * A failure for one share does not stop recalibration of the remaining catalog.</p>
+     *
+     * @return counts of adaptive updates, insufficient-history shares, and failures
+     */
     public CalibrationSummary recalibrateAll() {
         int updated = 0;
         int insufficient = 0;
@@ -299,6 +319,9 @@ public class StockTrendCalibrationService {
                              double typicalMovementPercent) {
     }
 
+    /**
+     * Summarizes one complete catalog recalibration run.
+     */
     public record CalibrationSummary(int updated, int insufficient, int failed) {
     }
 }

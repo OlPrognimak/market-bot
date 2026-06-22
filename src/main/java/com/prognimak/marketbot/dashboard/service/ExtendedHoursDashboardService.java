@@ -61,14 +61,57 @@ public class ExtendedHoursDashboardService {
                 .toList();
         if (results.isEmpty()) {
             results = fallbackResults(session, userSymbols);
+        } else {
+            LocalDate inMemoryDate = dataDate(results, DEFAULT_MARKET_ZONE);
+            ShareSessionQuoteEntity latestPersisted = latestEntity(session, userSymbols);
+            if (latestPersisted != null) {
+                ZoneId marketZone = marketZone(latestPersisted.getExchangeTimezone());
+                LocalDate persistedDate = latestPersisted.getProviderTimestamp().atZone(marketZone).toLocalDate();
+                if (inMemoryDate == null || persistedDate.isAfter(inMemoryDate)) {
+                    results = fallbackResults(session, userSymbols);
+                }
+            }
         }
-        LocalDate dataDate = results.stream()
+        LocalDate dataDate = dataDate(results, DEFAULT_MARKET_ZONE);
+        LocalDate expectedDate = expectedDate(session);
+        boolean fallback = dataDate != null && !dataDate.equals(expectedDate);
+        return new ExtendedHoursSnapshot(lastScanAt == null ? Instant.now() : lastScanAt, dataDate, expectedDate, fallback, results);
+    }
+
+    private LocalDate dataDate(List<ExtendedHoursResult> results, ZoneId marketZone) {
+        return results.stream()
                 .map(ExtendedHoursResult::providerTimestamp)
                 .max(Comparator.naturalOrder())
-                .map(timestamp -> timestamp.atZone(DEFAULT_MARKET_ZONE).toLocalDate())
+                .map(timestamp -> timestamp.atZone(marketZone).toLocalDate())
                 .orElse(null);
-        boolean fallback = dataDate != null && !dataDate.equals(LocalDate.now(DEFAULT_MARKET_ZONE));
-        return new ExtendedHoursSnapshot(lastScanAt == null ? Instant.now() : lastScanAt, dataDate, fallback, results);
+    }
+
+    private LocalDate expectedDate(MarketSession session) {
+        LocalDate today = LocalDate.now(DEFAULT_MARKET_ZONE);
+        if (session == MarketSession.POST_MARKET) {
+            return previousBusinessDay(today);
+        }
+        return businessDayOrPrevious(today);
+    }
+
+    private LocalDate businessDayOrPrevious(LocalDate date) {
+        LocalDate candidate = date;
+        while (isWeekend(candidate)) {
+            candidate = candidate.minusDays(1);
+        }
+        return candidate;
+    }
+
+    private LocalDate previousBusinessDay(LocalDate date) {
+        LocalDate candidate = date.minusDays(1);
+        while (isWeekend(candidate)) {
+            candidate = candidate.minusDays(1);
+        }
+        return candidate;
+    }
+
+    private boolean isWeekend(LocalDate date) {
+        return date.getDayOfWeek().getValue() >= 6;
     }
 
     private List<ExtendedHoursResult> fallbackResults(MarketSession session, Set<String> userSymbols) {

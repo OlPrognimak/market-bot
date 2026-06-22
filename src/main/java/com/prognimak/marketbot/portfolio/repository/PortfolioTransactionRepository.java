@@ -12,8 +12,6 @@ public interface PortfolioTransactionRepository extends JpaRepository<PortfolioT
 
     List<PortfolioTransactionEntity> findByUserIdOrderByEventTimeAsc(Long userId);
 
-    List<PortfolioTransactionEntity> findTop100ByUserIdOrderByEventTimeDesc(Long userId);
-
     List<PortfolioTransactionEntity> findByUserIdAndTickerIgnoreCaseOrderByEventTimeAsc(Long userId, String ticker);
 
     List<PortfolioTransactionEntity> findByUserIdAndTickerInOrderByEventTimeAsc(Long userId, List<String> tickers);

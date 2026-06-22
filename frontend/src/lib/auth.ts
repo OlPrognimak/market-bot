@@ -6,8 +6,12 @@ import type {
   AuthSession,
   CatalogItemPayload,
   CryptoCatalogItem,
+  ProviderSymbolMapping,
+  ProviderSymbolMappingPayload,
   SignUpPayload,
   StockCatalogItem,
+  SystemApiCredential,
+  SystemApiCredentialPayload,
   SymbolValidationResult,
   UserPayload,
   WatchlistCatalogItem
@@ -175,18 +179,65 @@ export async function deleteCryptoCatalogItem(token: string, id: number): Promis
   await authFetch(token, `/api/catalog/crypto/${id}`, { method: "DELETE" });
 }
 
+export async function fetchProviderSymbolMappings(token: string): Promise<ProviderSymbolMapping[]> {
+  const response = await authFetch(token, "/api/system/symbol-mappings");
+  return response.json() as Promise<ProviderSymbolMapping[]>;
+}
+
+export async function saveProviderSymbolMapping(
+  token: string,
+  payload: ProviderSymbolMappingPayload,
+  id?: number
+): Promise<ProviderSymbolMapping> {
+  const response = await authFetch(token, id ? `/api/system/symbol-mappings/${id}` : "/api/system/symbol-mappings", {
+    method: id ? "PUT" : "POST",
+    body: JSON.stringify(payload)
+  });
+  return response.json() as Promise<ProviderSymbolMapping>;
+}
+
+export async function deleteProviderSymbolMapping(token: string, id: number): Promise<void> {
+  await authFetch(token, `/api/system/symbol-mappings/${id}`, { method: "DELETE" });
+}
+
+export async function fetchSystemApiCredentials(token: string): Promise<SystemApiCredential[]> {
+  const response = await authFetch(token, "/api/system/api-credentials");
+  return response.json() as Promise<SystemApiCredential[]>;
+}
+
+export async function saveSystemApiCredential(
+  token: string,
+  payload: SystemApiCredentialPayload,
+  id?: number
+): Promise<SystemApiCredential> {
+  const response = await authFetch(token, id ? `/api/system/api-credentials/${id}` : "/api/system/api-credentials", {
+    method: id ? "PUT" : "POST",
+    body: JSON.stringify(payload)
+  });
+  return response.json() as Promise<SystemApiCredential>;
+}
+
+export async function deleteSystemApiCredential(token: string, id: number): Promise<void> {
+  await authFetch(token, `/api/system/api-credentials/${id}`, { method: "DELETE" });
+}
+
 export async function authFetch(token: string, path: string, init: RequestInit = {}): Promise<Response> {
+  const headers = new Headers(init.headers);
+  headers.set("Authorization", `Bearer ${token}`);
+  if (!(init.body instanceof FormData) && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+
   const response = await fetch(`${backendHttpUrl()}${path}`, {
     ...init,
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-      ...init.headers
-    }
+    headers
   });
 
   if (!response.ok) {
     const message = await response.text();
+    if (response.status === 401 || response.status === 403) {
+      throw new Error(message || "Session expired or access denied. Please log out and sign in again.");
+    }
     throw new Error(message || `Request failed with ${response.status}`);
   }
 

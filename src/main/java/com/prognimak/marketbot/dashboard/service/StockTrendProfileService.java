@@ -13,6 +13,12 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * Maintains an in-memory lookup of valid adaptive trend profiles for enabled shares.
+ *
+ * <p>Invalid, stale, low-confidence, or insufficiently sampled profiles are excluded so callers
+ * transparently receive the configured global fallback parameters.</p>
+ */
 @Service
 @RequiredArgsConstructor
 public class StockTrendProfileService {
@@ -20,6 +26,11 @@ public class StockTrendProfileService {
     private final TrendProperties properties;
     private final Map<String, TrendParameters> validProfiles = new ConcurrentHashMap<>();
 
+    /**
+     * Reloads valid persisted profiles into the runtime cache.
+     *
+     * <p>This is called after construction and after each recalibration run.</p>
+     */
     @PostConstruct
     public void refreshCache() {
         validProfiles.clear();
@@ -32,6 +43,12 @@ public class StockTrendProfileService {
                 .forEach(profile -> validProfiles.put(normalize(profile.getStock().getSymbol()), parameters(profile)));
     }
 
+    /**
+     * Resolves the effective live trend parameters for a share.
+     *
+     * @param symbol provider share symbol
+     * @return valid adaptive parameters, or global fallback parameters
+     */
     public TrendParameters parametersFor(String symbol) {
         if (!properties.adaptiveEnabled() || symbol == null) {
             return properties.defaults();

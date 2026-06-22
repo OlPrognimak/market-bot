@@ -10,6 +10,7 @@ import {
   saveStockCatalogItem
 } from "@/lib/auth";
 import { ALL_FILTER_VALUE } from "@/lib/filterConstants";
+import { nextSort, sortButtonLabel, sortRows, type SortColumn, type SortState } from "@/lib/tableSort";
 import type { CatalogItemPayload, CryptoCatalogItem, StockCatalogItem } from "../types";
 
 type Props = {
@@ -81,10 +82,12 @@ export function CatalogManagementPage({ token }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filters, setFilters] = useState<CatalogFilters>(emptyFilters);
+  const [stockSort, setStockSort] = useState<SortState<StockCatalogColumnKey>>({ key: "symbol", direction: "asc" });
+  const [cryptoSort, setCryptoSort] = useState<SortState<CryptoCatalogColumnKey>>({ key: "symbol", direction: "asc" });
 
   const rows = catalogType === "stocks" ? stocks : crypto;
   const filteredRows = useMemo(() => {
-    return rows.filter((row) => {
+    const filtered = rows.filter((row) => {
       if (!matchesStatus(row.enabled, filters.status)) {
         return false;
       }
@@ -105,7 +108,10 @@ export function CatalogManagementPage({ token }: Props) {
         && containsFilter(coin.name, filters.name)
         && containsFilter(coin.pairSymbol, filters.pairSymbol);
     });
-  }, [catalogType, filters, rows]);
+    return catalogType === "stocks"
+      ? sortRows(filtered as StockCatalogItem[], stockSort, stockCatalogColumns)
+      : sortRows(filtered as CryptoCatalogItem[], cryptoSort, cryptoCatalogColumns);
+  }, [catalogType, cryptoSort, filters, rows, stockSort]);
 
   const load = async () => {
     setError(null);
@@ -233,20 +239,21 @@ export function CatalogManagementPage({ token }: Props) {
           <table className={`users-table ${catalogType === "stocks" ? "stock-catalog-table" : "crypto-catalog-table"}`}>
             <thead>
               <tr>
-                <th>Symbol</th>
-                <th>Name</th>
-                {catalogType === "stocks" ? (
-                  <>
-                    <th>Region</th>
-                    <th>Sector</th>
-                    <th>Exchange</th>
-                    <th>Currency</th>
-                    <th>Priority</th>
-                  </>
-                ) : (
-                  <th>Pair</th>
-                )}
-                <th>Status</th>
+                {(catalogType === "stocks" ? stockCatalogColumns : cryptoCatalogColumns).map((column) => (
+                  <th key={column.key}>
+                    <button
+                      type="button"
+                      className="sortable-header"
+                      onClick={() => catalogType === "stocks"
+                        ? setStockSort((current) => nextSort(current, column.key as StockCatalogColumnKey))
+                        : setCryptoSort((current) => nextSort(current, column.key as CryptoCatalogColumnKey))}
+                    >
+                      {catalogType === "stocks"
+                        ? sortButtonLabel(stockSort, column.key as StockCatalogColumnKey, column.label)
+                        : sortButtonLabel(cryptoSort, column.key as CryptoCatalogColumnKey, column.label)}
+                    </button>
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
@@ -318,3 +325,24 @@ export function CatalogManagementPage({ token }: Props) {
     </section>
   );
 }
+
+type StockCatalogColumnKey = "symbol" | "name" | "region" | "sector" | "exchange" | "currency" | "priority" | "status";
+type CryptoCatalogColumnKey = "symbol" | "name" | "pair" | "status";
+
+const stockCatalogColumns: Array<SortColumn<StockCatalogItem, StockCatalogColumnKey>> = [
+  { key: "symbol", label: "Symbol", value: (row) => row.symbol },
+  { key: "name", label: "Name", value: (row) => row.name },
+  { key: "region", label: "Region", value: (row) => row.region },
+  { key: "sector", label: "Sector", value: (row) => row.sector },
+  { key: "exchange", label: "Exchange", value: (row) => row.exchange },
+  { key: "currency", label: "Currency", value: (row) => row.currency },
+  { key: "priority", label: "Priority", value: (row) => row.priority },
+  { key: "status", label: "Status", value: (row) => row.enabled }
+];
+
+const cryptoCatalogColumns: Array<SortColumn<CryptoCatalogItem, CryptoCatalogColumnKey>> = [
+  { key: "symbol", label: "Symbol", value: (row) => row.symbol },
+  { key: "name", label: "Name", value: (row) => row.name },
+  { key: "pair", label: "Pair", value: (row) => row.pairSymbol },
+  { key: "status", label: "Status", value: (row) => row.enabled }
+];

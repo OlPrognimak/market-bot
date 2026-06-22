@@ -227,7 +227,7 @@ export function DashboardPage({ token, currentUser }: Props) {
 
       {sessionView === "REGULAR"
         ? <MarketResultsTable results={results} onOpenChart={(result) => setChartSymbol(result.symbol)} />
-        : <ExtendedHoursTable snapshot={extendedSnapshot} />}
+        : <ExtendedHoursTable snapshot={extendedSnapshot} selectedSession={sessionView} />}
       <MarketChartDialog token={token} result={chartResult} onClose={() => setChartSymbol(null)} />
     </main>
   );

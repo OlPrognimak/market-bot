@@ -137,7 +137,7 @@ public class MarketScannerService {
                 if (!usersWatchingSymbol.isEmpty()) {
                     log.info(
                             "{}{} ({}) {} current: {}% | previous: {}% | delta: {}% | rolling {}: {}%{}",
-                            colorFor(rollingDeltaSum),
+                            colorFor(delta),
                             companyName,
                             symbol,
                             directionLabel(rollingDeltaSum),
@@ -310,8 +310,8 @@ public class MarketScannerService {
             double rollingDelta,
             int rollingWindowSize
     ) {
-        String icon = rollingDelta >= 0 ? "🟢" : "🔴";
-        String direction = rollingDelta >= 0 ? "UP" : "DOWN";
+        String icon = rollingDelta > 0 ? "🟢" : rollingDelta < 0 ? "🔴" : "⚪";
+        String direction = directionLabel(rollingDelta);
         String companyLabel = companyLabel(watchlistItem);
 
         String timestamp = LocalDateTime.now()

@@ -143,7 +143,7 @@ market-bot:
       BTC: Bitcoin
       ETH: Ethereum
 
-    min-quote-volume: ${MARKET_BOT_CRYPTO_MIN_QUOTE_VOLUME:1000000}
+    min-quote-volume: ${MARKET_BOT_CRYPTO_MIN_QUOTE_VOLUME:300000}
     price-change-percent: ${MARKET_BOT_CRYPTO_PRICE_CHANGE_PERCENT:3}
     scan-window: ${MARKET_BOT_CRYPTO_SCAN_WINDOW:5m}
     max-quote-fetch-attempts: ${MARKET_BOT_CRYPTO_MAX_QUOTE_FETCH_ATTEMPTS:3}

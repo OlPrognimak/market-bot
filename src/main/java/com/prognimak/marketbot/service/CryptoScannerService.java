@@ -326,9 +326,9 @@ public class CryptoScannerService {
     }
 
     private String buildMessage(CryptoMovement movement, double delta) {
-        boolean up = movement.priceChangePercent() >= 0;
-        String direction = up ? "UP" : "DOWN";
-        String icon = up ? "✅" : "❌";
+        double percent = movement.priceChangePercent();
+        String direction = percent > 0 ? "UP" : percent < 0 ? "DOWN" : "FLAT";
+        String icon = percent > 0 ? "✅" : percent < 0 ? "❌" : "⚪";
         String coinMark = coinMark(movement.baseAsset());
         return """
                 %s %s CRYPTO %s %s

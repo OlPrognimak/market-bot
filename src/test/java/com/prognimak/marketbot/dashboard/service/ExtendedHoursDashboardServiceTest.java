@@ -75,10 +75,34 @@ class ExtendedHoursDashboardServiceTest {
         assertTrue(snapshot.results().stream().allMatch(result -> result.freshness() == FreshnessStatus.STALE));
     }
 
+    @Test
+    void replacesStaleInMemorySessionWithNewerPersistedSessionDate() {
+        service.record(result(MarketSession.POST_MARKET, Instant.parse("2026-06-16T23:30:00Z")));
+        ShareSessionQuoteEntity newest = entity("AAPL", Instant.parse("2026-06-17T23:30:00Z"));
+        when(repository.findFirstBySessionTypeOrderByProviderTimestampDesc(MarketSession.POST_MARKET))
+                .thenReturn(Optional.of(newest));
+        when(repository.findBySessionTypeAndProviderTimestampBetweenOrderByProviderTimestampDesc(
+                eq(MarketSession.POST_MARKET), any(), any()
+        )).thenReturn(List.of(newest));
+        when(watchlistService.watchlist()).thenReturn(Map.of(
+                "AAPL", WatchlistItem.simple("AAPL", "Apple")
+        ));
+
+        var snapshot = service.snapshot(null, MarketSession.POST_MARKET);
+
+        assertEquals(LocalDate.of(2026, 6, 17), snapshot.dataDate());
+        assertEquals(1, snapshot.results().size());
+        assertTrue(snapshot.results().stream().allMatch(result -> result.freshness() == FreshnessStatus.STALE));
+    }
+
     private ExtendedHoursResult result(MarketSession session) {
+        return result(session, Instant.now());
+    }
+
+    private ExtendedHoursResult result(MarketSession session, Instant providerTimestamp) {
         return new ExtendedHoursResult(
                 "AAPL", "Apple", "US", "Technology", "NMS", session,
-                200, 1, 0.1, 0.5, 1_000, FreshnessStatus.LIVE, Instant.now()
+                200, 1, 0.1, 0.5, 1_000, FreshnessStatus.LIVE, providerTimestamp
         );
     }
 

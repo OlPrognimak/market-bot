@@ -17,6 +17,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.time.LocalDate;
 import java.util.*;
 
@@ -29,6 +30,7 @@ public class PortfolioImportService {
     private final PortfolioTransactionRepository transactionRepository;
     private final PortfolioRealizedLotRepository realizedLotRepository;
     private final PortfolioIncomeRepository incomeRepository;
+    private final ProviderSymbolMappingService symbolMappingService;
 
     @Transactional
     public PortfolioImportResponse importFile(
@@ -38,26 +40,31 @@ public class PortfolioImportService {
     ) {
         byte[] bytes = readBytes(file);
         String fileHash = sha256(bytes);
+        List<List<String>> rows = parseCsv(new String(bytes, StandardCharsets.UTF_8));
+        PortfolioImportSchema schema = detectSchema(rows);
+        PortfolioProviderType detectedProviderType = providerType(schema);
         Optional<PortfolioImportEntity> existingImport =
-                importRepository.findByUserIdAndProviderTypeAndFileHash(user.getId(), providerType, fileHash);
+                importRepository.findByUserIdAndProviderTypeAndFileHash(user.getId(), detectedProviderType, fileHash);
         if (existingImport.isPresent()) {
             return toResponse(existingImport.get(), true);
         }
 
-        List<List<String>> rows = parseCsv(new String(bytes, StandardCharsets.UTF_8));
-        PortfolioImportSchema schema = detectSchema(rows);
-
         PortfolioImportEntity portfolioImport = new PortfolioImportEntity();
         portfolioImport.setUser(user);
-        portfolioImport.setProviderType(providerType);
+        portfolioImport.setProviderType(detectedProviderType);
         portfolioImport.setSchemaType(schema);
         portfolioImport.setOriginalFileName(Optional.ofNullable(file.getOriginalFilename()).orElse("portfolio.csv"));
         portfolioImport.setFileHash(fileHash);
         portfolioImport = importRepository.save(portfolioImport);
 
-        ImportCounts counts = schema == PortfolioImportSchema.REVOLUT_ALL_TRANSACTIONS
-                ? importTransactions(user, providerType, portfolioImport, rows)
-                : importStatement(user, providerType, portfolioImport, rows);
+        ImportCounts counts = switch (schema) {
+            case REVOLUT_ALL_TRANSACTIONS -> importTransactions(user, detectedProviderType, portfolioImport, rows);
+            case REVOLUT_GAIN_LOSS_STATEMENT -> importStatement(user, detectedProviderType, portfolioImport, rows);
+            case TRADE_REPUBLIC_TRANSACTION_EXPORT ->
+                    importTradeRepublicTransactions(user, detectedProviderType, portfolioImport, rows);
+            case TRADE_REPUBLIC_TAX_OVERVIEW ->
+                    importTradeRepublicTaxOverview(user, detectedProviderType, portfolioImport, rows);
+        };
 
         portfolioImport.setTotalRows(counts.total());
         portfolioImport.setImportedRows(counts.imported());
@@ -102,7 +109,7 @@ public class PortfolioImportService {
             entity.setRecordFingerprint(fingerprint);
             entity.setSourceRowNumber(index + 1);
             entity.setEventTime(Instant.parse(row.get(0)));
-            entity.setTicker(blankToNull(row.get(1)));
+            entity.setTicker(revolutSymbolOrNull(row.get(1)));
             entity.setTransactionType(row.get(2).trim());
             entity.setQuantity(decimalOrNull(row.get(3)));
             entity.setPricePerShare(moneyOrNull(row.get(4)));
@@ -113,6 +120,117 @@ public class PortfolioImportService {
             imported++;
         }
         return new ImportCounts(imported + skipped, imported, skipped);
+    }
+
+    private ImportCounts importTradeRepublicTransactions(
+            AppUserEntity user,
+            PortfolioProviderType providerType,
+            PortfolioImportEntity portfolioImport,
+            List<List<String>> rows
+    ) {
+        requireHeaderContains(rows.getFirst(), List.of(
+                "datetime", "category", "type", "asset_class", "name", "symbol", "shares", "price",
+                "amount", "fee", "tax", "currency", "transaction_id"));
+        Map<String, Integer> header = headerIndex(rows.getFirst());
+        int imported = 0;
+        int skipped = 0;
+        int total = 0;
+        for (int index = 1; index < rows.size(); index++) {
+            List<String> row = rows.get(index);
+            if (row.stream().allMatch(String::isBlank)
+                    || !"TRADING".equals(value(row, header, "category"))) {
+                continue;
+            }
+            total++;
+            String type = value(row, header, "type");
+            if (!"BUY".equals(type) && !"SELL".equals(type)) {
+                continue;
+            }
+            String fingerprint = value(row, header, "transaction_id");
+            if (fingerprint.isBlank()) {
+                fingerprint = sha256(String.join("\u001f", row).getBytes(StandardCharsets.UTF_8));
+            }
+            if (transactionRepository.existsByUserIdAndProviderTypeAndRecordFingerprint(
+                    user.getId(), providerType, fingerprint)) {
+                skipped++;
+                continue;
+            }
+
+            PortfolioTransactionEntity entity = new PortfolioTransactionEntity();
+            entity.setUser(user);
+            entity.setPortfolioImport(portfolioImport);
+            entity.setProviderType(providerType);
+            entity.setRecordFingerprint(fingerprint);
+            entity.setSourceRowNumber(index + 1);
+            entity.setEventTime(Instant.parse(value(row, header, "datetime")));
+            entity.setTicker(symbolMappingService.resolveMarketSymbol(providerType, value(row, header, "symbol")));
+            entity.setTransactionType(type);
+            entity.setQuantity(decimal(value(row, header, "shares")).abs());
+            entity.setPricePerShare(decimalOrNull(value(row, header, "price")));
+            entity.setTotalAmount(tradeRepublicNetAmount(row, header).abs());
+            entity.setCurrency(value(row, header, "currency").toUpperCase(Locale.ROOT));
+            entity.setFxRate(BigDecimal.ONE);
+            transactionRepository.save(entity);
+            imported++;
+        }
+        return new ImportCounts(total, imported, skipped);
+    }
+
+    private ImportCounts importTradeRepublicTaxOverview(
+            AppUserEntity user,
+            PortfolioProviderType providerType,
+            PortfolioImportEntity portfolioImport,
+            List<List<String>> rows
+    ) {
+        requireHeaderContains(rows.getFirst(), List.of(
+                "Datum", "Transaktionen", "ISIN", "Name", "Total", "Gewinn/Verlust", "Summe"));
+        Map<String, Integer> header = headerIndex(rows.getFirst());
+        int imported = 0;
+        int skipped = 0;
+        int total = 0;
+        Map<String, Integer> occurrences = new HashMap<>();
+        for (int index = 1; index < rows.size(); index++) {
+            List<String> row = rows.get(index);
+            if (row.stream().allMatch(String::isBlank)) {
+                continue;
+            }
+            total++;
+            if (!"SELL".equals(value(row, header, "Transaktionen"))) {
+                continue;
+            }
+            String fingerprint = sha256(String.join("\u001f", row).getBytes(StandardCharsets.UTF_8));
+            int occurrence = occurrences.merge(fingerprint, 1, Integer::sum);
+            if (realizedLotRepository.existsByUserIdAndProviderTypeAndRecordFingerprintAndOccurrenceOrdinal(
+                    user.getId(), providerType, fingerprint, occurrence)) {
+                skipped++;
+                continue;
+            }
+
+            LocalDate soldDate = LocalDateTime.parse(value(row, header, "Datum")).toLocalDate();
+            BigDecimal proceeds = decimal(value(row, header, "Total"));
+            BigDecimal pnl = decimal(value(row, header, "Gewinn/Verlust"));
+            PortfolioRealizedLotEntity entity = new PortfolioRealizedLotEntity();
+            entity.setUser(user);
+            entity.setPortfolioImport(portfolioImport);
+            entity.setProviderType(providerType);
+            entity.setRecordFingerprint(fingerprint);
+            entity.setOccurrenceOrdinal(occurrence);
+            entity.setSourceRowNumber(index + 1);
+            entity.setAcquiredDate(soldDate);
+            entity.setSoldDate(soldDate);
+            entity.setSymbol(symbolMappingService.resolveMarketSymbol(providerType, value(row, header, "ISIN")));
+            entity.setSecurityName(normalizeName(value(row, header, "Name")));
+            entity.setIsin(value(row, header, "ISIN"));
+            entity.setCountry("");
+            entity.setQuantity(BigDecimal.ZERO);
+            entity.setCostBasis(proceeds.subtract(pnl));
+            entity.setGrossProceeds(proceeds);
+            entity.setGrossPnl(pnl);
+            entity.setCurrency("EUR");
+            realizedLotRepository.save(entity);
+            imported++;
+        }
+        return new ImportCounts(total, imported, skipped);
     }
 
     private ImportCounts importStatement(
@@ -189,7 +307,7 @@ public class PortfolioImportService {
         entity.setSourceRowNumber(rowNumber);
         entity.setAcquiredDate(LocalDate.parse(row.get(0)));
         entity.setSoldDate(LocalDate.parse(row.get(1)));
-        entity.setSymbol(row.get(2).trim());
+        entity.setSymbol(symbolMappingService.resolveMarketSymbol(providerType, row.get(2)));
         entity.setSecurityName(normalizeName(row.get(3)));
         entity.setIsin(row.get(4).trim());
         entity.setCountry(row.get(5).trim());
@@ -219,7 +337,7 @@ public class PortfolioImportService {
         entity.setOccurrenceOrdinal(occurrence);
         entity.setSourceRowNumber(rowNumber);
         entity.setIncomeDate(LocalDate.parse(row.get(0)));
-        entity.setSymbol(row.get(1).trim());
+        entity.setSymbol(symbolMappingService.resolveMarketSymbol(providerType, row.get(1)));
         entity.setSecurityName(normalizeName(row.get(2)));
         entity.setIsin(row.get(3).trim());
         entity.setCountry(row.get(4).trim());
@@ -241,7 +359,20 @@ public class PortfolioImportService {
         if ("Income from Sells".equals(first)) {
             return PortfolioImportSchema.REVOLUT_GAIN_LOSS_STATEMENT;
         }
-        throw badRequest("Unsupported Revolut CSV schema");
+        if ("datetime".equals(first) && rows.getFirst().contains("transaction_id")) {
+            return PortfolioImportSchema.TRADE_REPUBLIC_TRANSACTION_EXPORT;
+        }
+        if ("Datum".equals(first) && rows.getFirst().contains("Gewinn/Verlust")) {
+            return PortfolioImportSchema.TRADE_REPUBLIC_TAX_OVERVIEW;
+        }
+        throw badRequest("Unsupported portfolio CSV schema");
+    }
+
+    private PortfolioProviderType providerType(PortfolioImportSchema schema) {
+        return switch (schema) {
+            case REVOLUT_ALL_TRANSACTIONS, REVOLUT_GAIN_LOSS_STATEMENT -> PortfolioProviderType.REVOLUT;
+            case TRADE_REPUBLIC_TRANSACTION_EXPORT, TRADE_REPUBLIC_TAX_OVERVIEW -> PortfolioProviderType.TRADE_REPUBLIC;
+        };
     }
 
     private byte[] readBytes(MultipartFile file) {
@@ -315,17 +446,51 @@ public class PortfolioImportService {
         return value == null || value.isBlank() ? null : decimal(value);
     }
 
+    private static BigDecimal decimalOrZero(String value) {
+        return value == null || value.isBlank() ? BigDecimal.ZERO : decimal(value);
+    }
+
+    private static BigDecimal tradeRepublicNetAmount(List<String> row, Map<String, Integer> header) {
+        return decimal(value(row, header, "amount"))
+                .add(decimalOrZero(value(row, header, "fee")))
+                .add(decimalOrZero(value(row, header, "tax")));
+    }
+
     private static String normalizeName(String value) {
         return value.trim().replace("&amp;", "&");
+    }
+
+    private static Map<String, Integer> headerIndex(List<String> header) {
+        Map<String, Integer> indexes = new HashMap<>();
+        for (int index = 0; index < header.size(); index++) {
+            indexes.put(header.get(index), index);
+        }
+        return indexes;
+    }
+
+    private static String value(List<String> row, Map<String, Integer> header, String name) {
+        Integer index = header.get(name);
+        return index == null || index >= row.size() ? "" : row.get(index).trim();
     }
 
     private static String blankToNull(String value) {
         return value == null || value.isBlank() ? null : value.trim();
     }
 
+    private String revolutSymbolOrNull(String value) {
+        String normalized = blankToNull(value);
+        return normalized == null ? null : symbolMappingService.resolveMarketSymbol(PortfolioProviderType.REVOLUT, normalized);
+    }
+
     private static void requireHeader(List<String> actual, List<String> expected) {
         if (!actual.equals(expected)) {
             throw badRequest("Unsupported all-transactions CSV header");
+        }
+    }
+
+    private static void requireHeaderContains(List<String> actual, List<String> required) {
+        if (!actual.containsAll(required)) {
+            throw badRequest("Unsupported portfolio CSV header");
         }
     }
 
