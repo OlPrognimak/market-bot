@@ -20,6 +20,8 @@ import static com.prognimak.marketbot.util.Utils.roundDouble;
 @Service
 @RequiredArgsConstructor
 public class YahooFinanceClient implements MarketDataProvider {
+    private static final double EXTENDED_HOURS_OUTLIER_THRESHOLD_PERCENT = 8.0;
+    private static final double EXTENDED_HOURS_LOW_VOLUME_THRESHOLD = 1_000.0;
     private static final List<String> PUBLIC_CHART_HOSTS = List.of(
             "query1.finance.yahoo.com",
             "query2.finance.yahoo.com"
@@ -146,7 +148,7 @@ public class YahooFinanceClient implements MarketDataProvider {
             throw new IllegalStateException("No Yahoo Finance session candles for symbol: " + requestedSymbol);
         }
         YahooChartResponse.QuoteData quote = indicators.quote().getFirst();
-        int latestIndex = latestNumericIndex(quote.close());
+        int latestIndex = latestSessionPriceIndex(meta, quote, result.timestamp());
         if (latestIndex < 0 || result.timestamp() == null || latestIndex >= result.timestamp().size()) {
             throw new IllegalStateException("No timestamped Yahoo Finance session price for symbol: " + requestedSymbol);
         }
@@ -173,6 +175,91 @@ public class YahooFinanceClient implements MarketDataProvider {
                 roundDouble(valueAtOrFallback(quote.volume(), latestIndex, 0), 2),
                 Instant.ofEpochSecond(timestamp)
         );
+    }
+
+    private int latestSessionPriceIndex(
+            YahooChartResponse.Meta meta,
+            YahooChartResponse.QuoteData quote,
+            List<Long> timestamps
+    ) {
+        if (quote.close() == null || timestamps == null) {
+            return -1;
+        }
+
+        int latestFallbackIndex = -1;
+        int latestNonSuspiciousFallbackIndex = -1;
+        int latestSuspiciousPositiveVolumeIndex = -1;
+        int upperBound = Math.min(quote.close().size(), timestamps.size());
+        for (int i = upperBound - 1; i >= 0; i--) {
+            Double close = quote.close().get(i);
+            if (close == null) {
+                continue;
+            }
+            if (latestFallbackIndex < 0) {
+                latestFallbackIndex = i;
+            }
+
+            boolean suspicious = isSuspiciousExtendedHoursPrint(meta, quote.close(), quote.volume(), timestamps.get(i), i, close);
+            if (!suspicious && latestNonSuspiciousFallbackIndex < 0) {
+                latestNonSuspiciousFallbackIndex = i;
+            }
+
+            if (positiveVolumeAt(quote.volume(), i)) {
+                if (!suspicious) {
+                    return i;
+                }
+                if (latestSuspiciousPositiveVolumeIndex < 0) {
+                    latestSuspiciousPositiveVolumeIndex = i;
+                }
+            }
+        }
+
+        if (latestNonSuspiciousFallbackIndex >= 0) {
+            return latestNonSuspiciousFallbackIndex;
+        }
+
+        return latestFallbackIndex >= 0 ? latestFallbackIndex : latestSuspiciousPositiveVolumeIndex;
+    }
+
+    private boolean isSuspiciousExtendedHoursPrint(
+            YahooChartResponse.Meta meta,
+            List<Double> closes,
+            List<Double> volumes,
+            long timestamp,
+            int index,
+            double price
+    ) {
+        if (!weakVolumeAt(volumes, index)) {
+            return false;
+        }
+
+        MarketSession session = session(meta.currentTradingPeriod(), timestamp);
+        if (session != MarketSession.PRE_MARKET && session != MarketSession.POST_MARKET) {
+            return false;
+        }
+
+        double baseline = session == MarketSession.POST_MARKET
+                ? valueOrLastClose(meta.regularMarketPrice(), closes)
+                : previousClose(meta.previousClose(), meta.chartPreviousClose(), price);
+        double changePercent = baseline <= 0 ? 0 : ((price - baseline) / baseline) * 100;
+        return Math.abs(changePercent) > EXTENDED_HOURS_OUTLIER_THRESHOLD_PERCENT;
+    }
+
+    private boolean positiveVolumeAt(List<Double> volumes, int index) {
+        Double volume = valueAt(volumes, index);
+        return volume != null && volume > 0;
+    }
+
+    private boolean weakVolumeAt(List<Double> volumes, int index) {
+        Double volume = valueAt(volumes, index);
+        return volume == null || volume < EXTENDED_HOURS_LOW_VOLUME_THRESHOLD;
+    }
+
+    private Double valueAt(List<Double> values, int index) {
+        if (values == null || index < 0 || index >= values.size()) {
+            return null;
+        }
+        return values.get(index);
     }
 
     private MarketSession session(YahooChartResponse.TradingPeriods periods, long timestamp) {

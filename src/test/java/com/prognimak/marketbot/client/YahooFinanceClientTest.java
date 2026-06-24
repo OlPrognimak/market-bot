@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertAll;
@@ -88,6 +89,137 @@ class YahooFinanceClientTest {
                 () -> assertEquals(200.0, quote.baselinePrice()),
                 () -> assertEquals(1.0, quote.changePercent()),
                 () -> assertEquals(1_000.0, quote.volume())
+        );
+    }
+
+    @Test
+    void mapSessionQuoteIgnoresSuspiciousLowVolumePreMarketOutlier() {
+        long timestamp = Instant.now().getEpochSecond();
+        YahooChartResponse.TradingPeriods periods = new YahooChartResponse.TradingPeriods(
+                new YahooChartResponse.TradingPeriod("EDT", timestamp - 600, timestamp + 60, -14_400),
+                new YahooChartResponse.TradingPeriod("EDT", timestamp + 61, timestamp + 10_000, -14_400),
+                null
+        );
+        YahooChartResponse.Meta meta = new YahooChartResponse.Meta(
+                "AMZN", 201.0, 200.0, 200.0, timestamp, "NMS", "America/New_York", -14_400, periods
+        );
+        YahooChartResponse.QuoteData data = new YahooChartResponse.QuoteData(
+                List.of(198.0, 178.0),
+                List.of(198.0, 178.0),
+                List.of(198.0, 178.0),
+                List.of(198.0, 178.0),
+                List.of(5_000.0, 5.0)
+        );
+
+        YahooSessionQuote quote = client.mapSessionQuote("AMZN", new YahooChartResponse.Result(
+                meta, List.of(timestamp - 60, timestamp), new YahooChartResponse.Indicators(List.of(data))
+        ));
+
+        assertAll(
+                () -> assertEquals(MarketSession.PRE_MARKET, quote.session()),
+                () -> assertEquals(198.0, quote.price()),
+                () -> assertEquals(200.0, quote.baselinePrice()),
+                () -> assertEquals(-1.0, quote.changePercent()),
+                () -> assertEquals(5_000.0, quote.volume()),
+                () -> assertEquals(Instant.ofEpochSecond(timestamp - 60), quote.providerTimestamp())
+        );
+    }
+
+    @Test
+    void mapSessionQuoteFallsBackToLatestCloseWhenVolumeIsMissing() {
+        long timestamp = Instant.now().getEpochSecond();
+        YahooChartResponse.TradingPeriods periods = new YahooChartResponse.TradingPeriods(
+                new YahooChartResponse.TradingPeriod("EDT", timestamp - 60, timestamp + 60, -14_400),
+                new YahooChartResponse.TradingPeriod("EDT", timestamp + 61, timestamp + 10_000, -14_400),
+                null
+        );
+        YahooChartResponse.Meta meta = new YahooChartResponse.Meta(
+                "AAPL", 201.0, 200.0, 200.0, timestamp, "NMS", "America/New_York", -14_400, periods
+        );
+        YahooChartResponse.QuoteData data = new YahooChartResponse.QuoteData(
+                List.of(201.0, 202.0),
+                List.of(201.0, 202.0),
+                List.of(201.0, 202.0),
+                List.of(201.0, 202.0),
+                null
+        );
+
+        YahooSessionQuote quote = client.mapSessionQuote("AAPL", new YahooChartResponse.Result(
+                meta, List.of(timestamp - 60, timestamp), new YahooChartResponse.Indicators(List.of(data))
+        ));
+
+        assertAll(
+                () -> assertEquals(202.0, quote.price()),
+                () -> assertEquals(200.0, quote.baselinePrice()),
+                () -> assertEquals(1.0, quote.changePercent()),
+                () -> assertEquals(0.0, quote.volume()),
+                () -> assertEquals(Instant.ofEpochSecond(timestamp), quote.providerTimestamp())
+        );
+    }
+
+    @Test
+    void mapSessionQuoteIgnoresExtremePreMarketOutlierWhenVolumeIsMissing() {
+        long timestamp = Instant.now().getEpochSecond();
+        YahooChartResponse.TradingPeriods periods = new YahooChartResponse.TradingPeriods(
+                new YahooChartResponse.TradingPeriod("EDT", timestamp - 600, timestamp + 60, -14_400),
+                new YahooChartResponse.TradingPeriod("EDT", timestamp + 61, timestamp + 10_000, -14_400),
+                null
+        );
+        YahooChartResponse.Meta meta = new YahooChartResponse.Meta(
+                "AMZU", 35.43, 35.43, 35.43, timestamp, "NMS", "America/New_York", -14_400, periods
+        );
+        YahooChartResponse.QuoteData data = new YahooChartResponse.QuoteData(
+                List.of(35.07, 31.18),
+                List.of(35.07, 31.18),
+                List.of(35.07, 31.18),
+                List.of(35.07, 31.18),
+                Arrays.asList(null, null)
+        );
+
+        YahooSessionQuote quote = client.mapSessionQuote("AMZU", new YahooChartResponse.Result(
+                meta, List.of(timestamp - 60, timestamp), new YahooChartResponse.Indicators(List.of(data))
+        ));
+
+        assertAll(
+                () -> assertEquals(MarketSession.PRE_MARKET, quote.session()),
+                () -> assertEquals(35.07, quote.price()),
+                () -> assertEquals(35.43, quote.baselinePrice()),
+                () -> assertEquals(-1.02, quote.changePercent()),
+                () -> assertEquals(0.0, quote.volume()),
+                () -> assertEquals(Instant.ofEpochSecond(timestamp - 60), quote.providerTimestamp())
+        );
+    }
+
+    @Test
+    void mapSessionQuoteUsesRegularMarketPriceAsPostMarketBaseline() {
+        long timestamp = Instant.now().getEpochSecond();
+        YahooChartResponse.TradingPeriods periods = new YahooChartResponse.TradingPeriods(
+                null,
+                new YahooChartResponse.TradingPeriod("EDT", timestamp - 10_000, timestamp - 61, -14_400),
+                new YahooChartResponse.TradingPeriod("EDT", timestamp - 60, timestamp + 60, -14_400)
+        );
+        YahooChartResponse.Meta meta = new YahooChartResponse.Meta(
+                "MSFT", 205.0, 200.0, 200.0, timestamp, "NMS", "America/New_York", -14_400, periods
+        );
+        YahooChartResponse.QuoteData data = new YahooChartResponse.QuoteData(
+                List.of(206.0),
+                List.of(206.0),
+                List.of(206.0),
+                List.of(206.0),
+                List.of(2_000.0)
+        );
+
+        YahooSessionQuote quote = client.mapSessionQuote("MSFT", new YahooChartResponse.Result(
+                meta, List.of(timestamp), new YahooChartResponse.Indicators(List.of(data))
+        ));
+
+        assertAll(
+                () -> assertEquals(MarketSession.POST_MARKET, quote.session()),
+                () -> assertEquals(MarketSession.POST_MARKET, quote.activeSession()),
+                () -> assertEquals(206.0, quote.price()),
+                () -> assertEquals(205.0, quote.baselinePrice()),
+                () -> assertEquals(0.49, quote.changePercent()),
+                () -> assertEquals(2_000.0, quote.volume())
         );
     }
 

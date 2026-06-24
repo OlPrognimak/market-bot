@@ -78,8 +78,9 @@ class PortfolioImportServiceTest {
         PortfolioTransactionRepository transactionRepository = mock(PortfolioTransactionRepository.class);
         PortfolioRealizedLotRepository realizedLotRepository = mock(PortfolioRealizedLotRepository.class);
         PortfolioIncomeRepository incomeRepository = mock(PortfolioIncomeRepository.class);
+        ProviderSymbolMappingService symbolMappingService = mock(ProviderSymbolMappingService.class);
         PortfolioImportService service = new PortfolioImportService(
-                importRepository, transactionRepository, realizedLotRepository, incomeRepository);
+                importRepository, transactionRepository, realizedLotRepository, incomeRepository, symbolMappingService);
         AppUserEntity user = new AppUserEntity();
         user.setId(1L);
         String csv = "\"datetime\",\"date\",\"account_type\",\"category\",\"type\",\"asset_class\",\"name\",\"symbol\",\"shares\",\"price\",\"amount\",\"fee\",\"tax\",\"currency\",\"original_amount\",\"original_currency\",\"fx_rate\",\"description\",\"transaction_id\",\"counterparty_name\",\"counterparty_iban\",\"payment_reference\",\"mcc_code\"\n"
@@ -91,6 +92,8 @@ class PortfolioImportServiceTest {
         when(transactionRepository.existsByUserIdAndProviderTypeAndRecordFingerprint(any(), any(), any()))
                 .thenReturn(false);
         when(transactionRepository.save(any(PortfolioTransactionEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(symbolMappingService.resolveMarketSymbol(any(), any()))
+                .thenAnswer(invocation -> invocation.getArgument(1));
 
         var response = service.importFile(user, PortfolioProviderType.TRADE_REPUBLIC,
                 new MockMultipartFile("file", "Transaktionsexport.csv", "text/csv", csv.getBytes()));

@@ -4,8 +4,10 @@ import com.prognimak.marketbot.client.YahooFinanceClient;
 import com.prognimak.marketbot.entity.QuoteEntity;
 import com.prognimak.marketbot.entity.StockCatalogEntity;
 import com.prognimak.marketbot.model.Quote;
+import com.prognimak.marketbot.portfolio.model.PortfolioProviderType;
 import com.prognimak.marketbot.repository.QuoteRepository;
 import com.prognimak.marketbot.repository.StockCatalogRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -13,6 +15,8 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -22,8 +26,14 @@ class PortfolioMarketPriceServiceTest {
     private final QuoteRepository quoteRepository = mock(QuoteRepository.class);
     private final StockCatalogRepository stockCatalogRepository = mock(StockCatalogRepository.class);
     private final YahooFinanceClient yahooFinanceClient = mock(YahooFinanceClient.class);
+    private final ProviderSymbolMappingService symbolMappingService = mock(ProviderSymbolMappingService.class);
     private final PortfolioMarketPriceService service =
-            new PortfolioMarketPriceService(quoteRepository, stockCatalogRepository, yahooFinanceClient);
+            new PortfolioMarketPriceService(quoteRepository, stockCatalogRepository, yahooFinanceClient, symbolMappingService);
+
+    @BeforeEach
+    void setUp() {
+        when(symbolMappingService.marketCandidates(any(), anyString())).thenReturn(List.of());
+    }
 
     @Test
     void resolvesRevolutBaseTickerFromPersistedCatalogSymbol() {
@@ -52,6 +62,7 @@ class PortfolioMarketPriceServiceTest {
     void resolvesKnownRevolutAliasFromPersistedMarketQuote() {
         QuoteEntity quote = new QuoteEntity();
         quote.setCurrent(26.75);
+        when(symbolMappingService.marketCandidates(PortfolioProviderType.REVOLUT, "SGM")).thenReturn(List.of("STM"));
         when(quoteRepository.findFirstBySymbolOrderByCreatedDesc("STM")).thenReturn(Optional.of(quote));
 
         assertEquals(new BigDecimal("26.75"), service.resolve("SGM", "USD"));
@@ -62,6 +73,7 @@ class PortfolioMarketPriceServiceTest {
     void resolvesAbjToSwissAbbSymbol() {
         QuoteEntity quote = new QuoteEntity();
         quote.setCurrent(52.10);
+        when(symbolMappingService.marketCandidates(PortfolioProviderType.REVOLUT, "ABJ")).thenReturn(List.of("ABBN.SW"));
         when(quoteRepository.findFirstBySymbolOrderByCreatedDesc("ABBN.SW")).thenReturn(Optional.of(quote));
 
         assertEquals(new BigDecimal("52.1"), service.resolve("ABJ", "CHF"));
@@ -71,6 +83,7 @@ class PortfolioMarketPriceServiceTest {
     void resolvesXfbToXFabParisSymbol() {
         QuoteEntity quote = new QuoteEntity();
         quote.setCurrent(9.80);
+        when(symbolMappingService.marketCandidates(PortfolioProviderType.REVOLUT, "XFB")).thenReturn(List.of("XFAB.PA"));
         when(quoteRepository.findFirstBySymbolOrderByCreatedDesc("XFAB.PA")).thenReturn(Optional.of(quote));
 
         assertEquals(new BigDecimal("9.8"), service.resolve("XFB", "EUR"));

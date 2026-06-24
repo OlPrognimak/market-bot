@@ -22,8 +22,9 @@ class PortfolioAnalysisServiceTest {
     private final PortfolioRealizedLotRepository realizedLotRepository = mock(PortfolioRealizedLotRepository.class);
     private final PortfolioIncomeRepository incomeRepository = mock(PortfolioIncomeRepository.class);
     private final PortfolioMarketPriceService marketPriceService = mock(PortfolioMarketPriceService.class);
+    private final ProviderSymbolMappingService symbolMappingService = mock(ProviderSymbolMappingService.class);
     private final PortfolioAnalysisService service = new PortfolioAnalysisService(
-            transactionRepository, realizedLotRepository, incomeRepository, marketPriceService);
+            transactionRepository, realizedLotRepository, incomeRepository, marketPriceService, symbolMappingService);
 
     @Test
     void filtersPeriodResultsButKeepsCompleteCurrentPositionLedger() {
