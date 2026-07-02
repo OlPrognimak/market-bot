@@ -27,6 +27,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
+import org.springframework.web.reactive.function.client.WebClientRequestException;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -380,6 +381,20 @@ public class MarketScannerService {
                         providerName,
                         symbol,
                         e.getStatusCode().value(),
+                        attempt,
+                        properties.scanner().maxQuoteFetchAttempts()
+                );
+                sleepBeforeRetry(providerName, symbol);
+            } catch (WebClientRequestException e) {
+                if (attempt == properties.scanner().maxQuoteFetchAttempts()) {
+                    throw new IllegalStateException(providerName + " connection error for symbol "
+                            + symbol + ": " + e.getMessage(), e);
+                }
+                log.warn(
+                        "Transient {} connection error for symbol {}: {}. Retry {}/{}.",
+                        providerName,
+                        symbol,
+                        e.getMessage(),
                         attempt,
                         properties.scanner().maxQuoteFetchAttempts()
                 );

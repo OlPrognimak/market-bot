@@ -31,7 +31,7 @@ public class ExtendedHoursDashboardController {
             @AuthenticationPrincipal AppUserPrincipal principal,
             @RequestParam(required = false) MarketSession session
     ) {
-        scannerService.scan();
+        //scannerService.scan();
         return dashboardService.snapshot(principal == null ? null : principal.user().getId(), session);
     }
 }

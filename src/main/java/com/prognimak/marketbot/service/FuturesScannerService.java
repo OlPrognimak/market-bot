@@ -35,7 +35,7 @@ public class FuturesScannerService {
     private final FuturesQuoteRepository quoteRepository;
     private final FuturesDashboardService dashboardService;
 
-    @Scheduled(fixedDelayString = "${market-bot.futures.poll-interval-ms}")
+ //   @Scheduled(fixedDelayString = "${market-bot.futures.poll-interval-ms}")
     @Transactional
     public void scan() {
         if (!properties.futures().enabled()) return;

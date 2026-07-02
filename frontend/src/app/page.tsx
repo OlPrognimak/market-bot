@@ -13,10 +13,11 @@ import { UserManagementPage } from "@/features/users/components/UserManagementPa
 import { UserSettingsPage } from "@/features/users/components/UserSettingsPage";
 import { AnalyzePage } from "@/features/portfolio/components/AnalyzePage";
 import { ImportDataPage } from "@/features/portfolio/components/ImportDataPage";
+import { IbkrTradePage } from "@/features/trading/components/IbkrTradePage";
 import { clearSession, fetchCurrentUser, loadStoredSession, storeSession } from "@/lib/auth";
 import type { AuthSession } from "@/features/users/types";
 
-type AppView = "dashboard" | "crypto" | "futures" | "import" | "analyze" | "users" | "settings" | "catalog" | "system";
+type AppView = "dashboard" | "crypto" | "futures" | "ibkrTrade" | "import" | "analyze" | "users" | "settings" | "catalog" | "system";
 
 export default function Home() {
   const [session, setSession] = useState<AuthSession | null>(null);
@@ -92,6 +93,8 @@ export default function Home() {
         />
       ) : view === "futures" ? (
         <FuturesDashboardPage token={session.token} currentUser={session.user} />
+      ) : view === "ibkrTrade" ? (
+        <IbkrTradePage token={session.token} />
       ) : view === "import" ? (
         <ImportDataPage token={session.token} />
       ) : view === "analyze" ? (
@@ -165,6 +168,7 @@ function AppShell({
     { view: "dashboard", label: "Shares" },
     { view: "crypto", label: "Crypto" },
     { view: "futures", label: "Futures" },
+    { view: "ibkrTrade", label: "IBKR Trade" },
     { view: "import", label: "Import data" },
     { view: "analyze", label: "Analyze" },
     { view: "settings", label: "Settings" },

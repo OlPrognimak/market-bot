@@ -20,7 +20,7 @@ import java.util.Locale;
 @Service
 @RequiredArgsConstructor
 public class YahooCandleClient {
-    private static final List<String> HOSTS = List.of("query1.finance.yahoo.com", "query2.finance.yahoo.com");
+    private static final List<String> HOSTS = List.of("query2.finance.yahoo.com", "query1.finance.yahoo.com");
     private static final ZoneId DEFAULT_MARKET_ZONE = ZoneId.of("America/New_York");
 
     private final WebClient.Builder builder;
