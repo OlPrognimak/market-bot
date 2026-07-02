@@ -33,7 +33,7 @@ public class ExtendedHoursScannerService {
     private final ShareSessionQuoteRepository repository;
     private final ExtendedHoursDashboardService dashboardService;
 
-    @Scheduled(fixedDelayString = "${market-bot.extended-hours.poll-interval-ms}")
+   // @Scheduled(fixedDelayString = "${market-bot.extended-hours.poll-interval-ms}")
     @Transactional
     public void scan() {
         if (!properties.extendedHours().enabled()) {

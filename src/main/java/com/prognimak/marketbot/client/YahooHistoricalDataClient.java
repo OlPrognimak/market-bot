@@ -21,6 +21,7 @@ import static com.prognimak.marketbot.util.Utils.roundDouble;
 @Service
 @RequiredArgsConstructor
 public class YahooHistoricalDataClient {
+    private static final List<String> HOSTS = List.of("query2.finance.yahoo.com", "query1.finance.yahoo.com");
     private static final ZoneId TRADING_DATE_ZONE = ZoneId.systemDefault();
 
     private final WebClient.Builder builder;
@@ -36,11 +37,39 @@ public class YahooHistoricalDataClient {
         long period1 = requestFrom.atStartOfDay(ZoneOffset.UTC).toEpochSecond();
         long period2 = to.plusDays(1).atStartOfDay(ZoneOffset.UTC).toEpochSecond();
 
-        YahooChartResponse response = builder.build()
+        YahooChartResponse response = loadChart(symbol, period1, period2, intervalType);
+
+        if (response == null || response.chart() == null || response.chart().result() == null || response.chart().result().isEmpty()) {
+            throw new IllegalStateException("No Yahoo Finance historical data for symbol: " + symbol);
+        }
+
+        return mapQuotes(symbol, response.chart().result().getFirst(), from, to, source, intervalType);
+    }
+
+    private YahooChartResponse loadChart(String symbol, long period1, long period2, HistoryIntervalType intervalType) {
+        RuntimeException firstFailure = null;
+        for (String host : HOSTS) {
+            try {
+                return request(host, symbol, period1, period2, intervalType);
+            } catch (RuntimeException exception) {
+                if (firstFailure == null) {
+                    firstFailure = exception;
+                } else {
+                    firstFailure.addSuppressed(exception);
+                }
+            }
+        }
+        throw firstFailure == null
+                ? new IllegalStateException("No Yahoo Finance public chart host is configured")
+                : firstFailure;
+    }
+
+    private YahooChartResponse request(String host, String symbol, long period1, long period2, HistoryIntervalType intervalType) {
+        return builder.build()
                 .get()
                 .uri(uriBuilder -> uriBuilder
                         .scheme("https")
-                        .host("query1.finance.yahoo.com")
+                        .host(host)
                         .path("/v8/finance/chart/{symbol}")
                         .queryParam("period1", period1)
                         .queryParam("period2", period2)
@@ -53,12 +82,6 @@ public class YahooHistoricalDataClient {
                 .retrieve()
                 .bodyToMono(YahooChartResponse.class)
                 .block();
-
-        if (response == null || response.chart() == null || response.chart().result() == null || response.chart().result().isEmpty()) {
-            throw new IllegalStateException("No Yahoo Finance historical data for symbol: " + symbol);
-        }
-
-        return mapQuotes(symbol, response.chart().result().getFirst(), from, to, source, intervalType);
     }
 
     private List<HistoryQuoteEntity> mapQuotes(

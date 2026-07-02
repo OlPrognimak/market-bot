@@ -181,3 +181,26 @@ market-bot:
     websocket-enabled: true
     scan-trigger-mode: BOTH
     max-results: 100
+
+trading:
+  enabled: ${MARKET_BOT_TRADING_ENABLED:true}
+  mode: ${MARKET_BOT_TRADING_MODE:PAPER}
+  live-enabled: ${MARKET_BOT_TRADING_LIVE_ENABLED:false}
+  require-manual-confirmation: ${MARKET_BOT_TRADING_REQUIRE_MANUAL_CONFIRMATION:true}
+  max-order-value-eur: ${MARKET_BOT_TRADING_MAX_ORDER_VALUE_EUR:500}
+  max-daily-loss-eur: ${MARKET_BOT_TRADING_MAX_DAILY_LOSS_EUR:100}
+  max-open-orders-per-symbol: ${MARKET_BOT_TRADING_MAX_OPEN_ORDERS_PER_SYMBOL:1}
+  max-spread-percent: ${MARKET_BOT_TRADING_MAX_SPREAD_PERCENT:1.0}
+  preview-ttl-seconds: ${MARKET_BOT_TRADING_PREVIEW_TTL_SECONDS:60}
+  allow-short-selling: ${MARKET_BOT_TRADING_ALLOW_SHORT_SELLING:false}
+  allowed-order-types:
+    - MARKET
+    - LIMIT
+  ibkr:
+    enabled: ${MARKET_BOT_TRADING_IBKR_ENABLED:true}
+    host: ${MARKET_BOT_TRADING_IBKR_HOST:127.0.0.1}
+    port: ${MARKET_BOT_TRADING_IBKR_PORT:7497}
+    client-id: ${MARKET_BOT_TRADING_IBKR_CLIENT_ID:1}
+    account-id: ${MARKET_BOT_TRADING_IBKR_ACCOUNT_ID:}
+    paper-account-only: ${MARKET_BOT_TRADING_IBKR_PAPER_ACCOUNT_ONLY:true}
+    connect-on-startup: ${MARKET_BOT_TRADING_IBKR_CONNECT_ON_STARTUP:false}

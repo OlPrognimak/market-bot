@@ -11,8 +11,14 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.context.annotation.Scope;
 import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 import org.springframework.http.codec.CodecConfigurer;
+import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.web.reactive.function.client.ExchangeStrategies;
 import org.springframework.web.reactive.function.client.WebClient;
+import reactor.netty.http.Http11SslContextSpec;
+import reactor.netty.http.client.HttpClient;
+import reactor.netty.tcp.SslProvider;
+
+import java.time.Duration;
 
 @Configuration(proxyBeanMethods = false)
 public class AppConfiguration {
@@ -20,8 +26,18 @@ public class AppConfiguration {
     @Scope(ConfigurableBeanFactory.SCOPE_PROTOTYPE)
     public WebClient.Builder webClientBuilder() {
         return WebClient.builder()
+                .clientConnector(new ReactorClientHttpConnector(httpClient()))
                 .exchangeStrategies(ExchangeStrategies.builder()
                         .codecs(this::configureCodecs)
+                        .build());
+    }
+
+    private HttpClient httpClient() {
+        return HttpClient.create()
+                .responseTimeout(Duration.ofSeconds(30))
+                .secure(SslProvider.builder()
+                        .sslContext(Http11SslContextSpec.forClient())
+                        .handshakeTimeout(Duration.ofSeconds(30))
                         .build());
     }
 

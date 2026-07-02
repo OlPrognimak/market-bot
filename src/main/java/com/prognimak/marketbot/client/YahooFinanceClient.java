@@ -23,8 +23,8 @@ public class YahooFinanceClient implements MarketDataProvider {
     private static final double EXTENDED_HOURS_OUTLIER_THRESHOLD_PERCENT = 8.0;
     private static final double EXTENDED_HOURS_LOW_VOLUME_THRESHOLD = 1_000.0;
     private static final List<String> PUBLIC_CHART_HOSTS = List.of(
-            "query1.finance.yahoo.com",
-            "query2.finance.yahoo.com"
+            "query2.finance.yahoo.com",
+            "query1.finance.yahoo.com"
     );
 
     private final WebClient.Builder builder;
