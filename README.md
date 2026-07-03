@@ -1,8 +1,14 @@
 # Market Bot
 
-Market Bot is a Spring Boot service with a Next.js frontend for watching shares, crypto, futures, portfolio imports, and manual paper trading. The backend stores data in PostgreSQL, scans market providers on a schedule, exposes REST/WebSocket APIs, and manages user-specific watchlists and notification settings.
+Market Bot is a Spring Boot service with a React frontend built on Next.js for watching shares, crypto, futures, portfolio imports, and manual paper trading. The backend stores data in PostgreSQL, scans market providers on a schedule, exposes REST/WebSocket APIs, and manages user-specific watchlists and notification settings.
 
 The current IBKR implementation supports explicit connection checks to TWS / IB Gateway and internal paper order execution. It does not yet send live orders to IBKR; keep `MARKET_BOT_TRADING_LIVE_ENABLED=false` unless live routing has been implemented and reviewed.
+
+## Tech Stack
+
+- Backend: Java 21, Spring Boot, Spring Security, Spring Data JPA, PostgreSQL, WebFlux/WebClient, WebSocket.
+- Frontend: React with Next.js, TypeScript, and `lightweight-charts`.
+- Deployment: Docker, Docker Compose, environment-driven configuration.
 
 ## Main Features
 
@@ -26,7 +32,7 @@ The current IBKR implementation supports explicit connection checks to TWS / IB 
 - `IBKR Trade`: manual trading workspace. Shows IBKR connection state, loads tradable shares from the dashboard snapshot, previews paper orders, confirms orders, and shows paper positions.
 - `Import data`: upload Revolut or Trade Republic CSV exports. Duplicate rows/files are skipped.
 - `Analyze`: analyze imported portfolio activity by date range, ticker, and provider. Shows realized lots, income, open positions, market value, and P/L.
-- `Settings`: current user's profile, watchlists, thresholds, and notification preferences.
+- `Settings`: current user's profile, watchlists, alert thresholds, and messenger preferences for Telegram and future WhatsApp delivery.
 - `Users`: admin-only user list, create/edit/delete users, roles, enabled state, and per-user settings.
 - `Account`: non-admin version of user settings for the current user.
 - `Catalog`: admin-only stock and crypto catalog editor.
@@ -36,7 +42,7 @@ The current IBKR implementation supports explicit connection checks to TWS / IB 
 ## Runtime Layout
 
 - Backend API: `http://localhost:8080`
-- Frontend dev server: `http://localhost:3000`
+- Frontend dev server: React/Next.js on `http://localhost:3000`
 - PostgreSQL default used by local config: `localhost:5455/test_db`
 - Docker image exposes the backend on `${MARKET_BOT_PORT:-8080}`.
 
@@ -68,12 +74,24 @@ Default admin credentials come from `APP_SECURITY_ADMIN_USERNAME` and `APP_SECUR
 
 ## Docker
 
-Build the jar first, then start Compose:
+There are two supported Docker deployment flows.
+
+Manual Compose flow:
 
 ```bash
 ./mvnw clean package
 docker compose --env-file .env up --build -d
 ```
+
+Maven `docker` profile flow:
+
+```bash
+./mvnw clean package -Pdocker
+```
+
+The `docker` Maven profile runs during the `package` phase. It builds the Spring Boot jar, builds a Docker image named `market-bot:${project.version}`, sets `MARKET_BOT_IMAGE_TAG` to that version for the Maven-triggered command, and starts the service with `docker compose up -d`.
+
+Use `.env` for the runtime values consumed by Compose, including database, provider keys, watchlist mount, trading, and IBKR settings. The Maven profile does not replace `.env`; it only automates image build and Compose startup.
 
 Docker uses `host.docker.internal` for services running on the Mac host, including PostgreSQL and IB Gateway/TWS. The default Compose file mounts:
 
@@ -81,6 +99,31 @@ Docker uses `host.docker.internal` for services running on the Mac host, includi
 - `${MARKET_BOT_LOG_DIR:-./logs}` to `/app/logs`
 
 Telegram values are optional in Compose. If you store Telegram credentials in the database, keep `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` empty in `.env`.
+
+## Messaging And Telegram
+
+Market Bot can send share and crypto alerts through messenger channels configured per user. Open `Settings` for your own account, or `Users` as an admin, then edit the `Messengers` section.
+
+Available messenger fields:
+
+- `Telegram enabled`: turns Telegram alert delivery on or off for that user.
+- `Telegram bot token`: token from Telegram `BotFather`, for example `123456:ABC...`.
+- `Telegram chat id`: target chat, group, or channel id where alerts should be sent.
+- `WhatsApp enabled` and `WhatsApp chat id`: stored in user settings, but the backend sender is not implemented yet. When enabled, the backend logs that WhatsApp delivery is unavailable.
+
+Telegram credentials can be configured in two ways:
+
+- Per user in `Settings` / `Users`. This is the preferred option when different users should receive alerts in different chats.
+- Globally through `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`. These values are used as fallback credentials when a user has Telegram enabled but has no user-specific token or chat id saved.
+
+To enable Telegram for one user:
+
+1. Create a Telegram bot with `BotFather` and copy the bot token.
+2. Send a message to the bot, or add the bot to the target group/channel.
+3. Find the chat id with Telegram `getUpdates` or another Telegram chat-id helper.
+4. In Market Bot, open `Settings`, enable `Telegram enabled`, enter the bot token and chat id, and save.
+
+The application sends alerts asynchronously and limits concurrent notification sends with `MARKET_BOT_NOTIFICATION_MAX_CONCURRENT_SENDS`.
 
 ## IBKR Setup
 
@@ -133,7 +176,7 @@ Important groups:
 - `APP_SECURITY_*`: JWT lifetime and bootstrapped admin user.
 - `OPENAI_*`: AI model/key settings for news insights.
 - `FINNHUB_API_KEY`, `TWELVE_API_KEY`: market data provider credentials.
-- `TELEGRAM_*`: optional fallback notification credentials.
+- `TELEGRAM_*`: optional fallback Telegram credentials. Per-user Telegram values from `Settings` take precedence.
 - `MARKET_BOT_SCANNER_*`: share scan frequency, quote change thresholds, and provider retry behavior.
 - `MARKET_BOT_ALERT_*`: alert thresholds for share movement.
 - `MARKET_BOT_TREND_*`: adaptive trend profile calibration.
