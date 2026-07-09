@@ -1,6 +1,6 @@
 app:
   datasource:
-    url: ${APP_DATASOURCE_URL:jdbc:postgresql://localhost:5455/test_db}
+    url: ${APP_DATASOURCE_URL:jdbc:postgresql://localhost:3477/test_db}
     username: ${APP_DATASOURCE_USERNAME:test}
     password: ${APP_DATASOURCE_PASSWORD:test}
     configuration:

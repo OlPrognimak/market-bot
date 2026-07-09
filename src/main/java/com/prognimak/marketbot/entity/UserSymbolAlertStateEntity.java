@@ -6,6 +6,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinColumns;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
@@ -40,7 +41,10 @@ public class UserSymbolAlertStateEntity extends AbstractEntity {
     private String symbol;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "last_sent_quote_id", nullable = false)
+    @JoinColumns({
+            @JoinColumn(name = "last_sent_quote_id", referencedColumnName = "id", nullable = false),
+            @JoinColumn(name = "last_sent_quote_created", referencedColumnName = "created", nullable = false)
+    })
     private QuoteEntity lastSentQuote;
 
     @Column(nullable = false)
