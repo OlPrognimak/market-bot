@@ -3,6 +3,7 @@ package com.prognimak.marketbot.client;
 
 import com.prognimak.marketbot.model.Quote;
 import com.prognimak.marketbot.model.MarketSession;
+import com.prognimak.marketbot.model.StockSymbolMetadata;
 import com.prognimak.marketbot.model.YahooChartResponse;
 import com.prognimak.marketbot.model.YahooSessionQuote;
 import lombok.RequiredArgsConstructor;
@@ -65,6 +66,24 @@ public class YahooFinanceClient implements MarketDataProvider {
                 : firstFailure;
     }
 
+    public StockSymbolMetadata getStockMetadata(String symbol) {
+        RuntimeException firstFailure = null;
+        for (String host : PUBLIC_CHART_HOSTS) {
+            try {
+                return getStockMetadata(host, symbol);
+            } catch (RuntimeException exception) {
+                if (firstFailure == null) {
+                    firstFailure = exception;
+                } else {
+                    firstFailure.addSuppressed(exception);
+                }
+            }
+        }
+        throw firstFailure == null
+                ? new IllegalStateException("No Yahoo Finance public chart host is configured")
+                : firstFailure;
+    }
+
     private Quote getQuote(String host, String symbol) {
         YahooChartResponse response = loadChart(host, symbol, false);
         if (response == null || response.chart() == null) {
@@ -90,6 +109,16 @@ public class YahooFinanceClient implements MarketDataProvider {
             throw new IllegalStateException("No Yahoo Finance extended-hours data for symbol: " + symbol);
         }
         return mapSessionQuote(symbol, response.chart().result().getFirst());
+    }
+
+    private StockSymbolMetadata getStockMetadata(String host, String symbol) {
+        YahooChartResponse response = loadChart(host, symbol, false);
+        if (response == null || response.chart() == null || response.chart().result() == null || response.chart().result().isEmpty()) {
+            throw new IllegalStateException("No Yahoo Finance data for symbol: " + symbol);
+        }
+        YahooChartResponse.Result result = response.chart().result().getFirst();
+        mapChartResult(symbol, result);
+        return mapStockMetadata(symbol, result.meta());
     }
 
     private YahooChartResponse loadChart(String host, String symbol, boolean includePrePost) {
@@ -175,6 +204,43 @@ public class YahooFinanceClient implements MarketDataProvider {
                 roundDouble(valueAtOrFallback(quote.volume(), latestIndex, 0), 2),
                 Instant.ofEpochSecond(timestamp)
         );
+    }
+
+    StockSymbolMetadata mapStockMetadata(String requestedSymbol, YahooChartResponse.Meta meta) {
+        if (meta == null) {
+            throw new IllegalStateException("No Yahoo Finance metadata for symbol: " + requestedSymbol);
+        }
+        String symbol = firstNonBlank(meta.symbol(), requestedSymbol).toUpperCase();
+        return new StockSymbolMetadata(
+                symbol,
+                firstNonBlank(meta.longName(), meta.shortName(), symbol),
+                region(meta.exchangeTimezoneName(), meta.currency(), symbol),
+                null,
+                firstNonBlank(meta.fullExchangeName(), meta.exchangeName(), meta.exchange()),
+                blankToNull(meta.currency())
+        );
+    }
+
+    private String region(String exchangeTimezoneName, String currency, String symbol) {
+        if (exchangeTimezoneName != null && !exchangeTimezoneName.isBlank()) {
+            return switch (exchangeTimezoneName) {
+                case "America/New_York", "America/Chicago" -> "US";
+                case "America/Toronto" -> "CA";
+                case "Europe/Berlin" -> "DE";
+                case "Europe/Paris" -> "FR";
+                case "Europe/Zurich" -> "CH";
+                case "Europe/London" -> "GB";
+                case "Europe/Amsterdam" -> "NL";
+                case "Asia/Tokyo" -> "JP";
+                case "Asia/Hong_Kong" -> "HK";
+                case "Australia/Sydney" -> "AU";
+                default -> null;
+            };
+        }
+        if ("USD".equalsIgnoreCase(currency) && !symbol.contains(".")) {
+            return "US";
+        }
+        return null;
     }
 
     private int latestSessionPriceIndex(
@@ -365,5 +431,18 @@ public class YahooFinanceClient implements MarketDataProvider {
                 .mapToDouble(Double::doubleValue)
                 .max()
                 .orElse(fallback);
+    }
+
+    private String firstNonBlank(String... values) {
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value.trim();
+            }
+        }
+        return null;
+    }
+
+    private String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 }

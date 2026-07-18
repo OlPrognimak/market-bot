@@ -5,6 +5,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -16,6 +17,7 @@ import java.io.IOException;
 
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtService jwtService;
     private final AppUserDetailsService userDetailsService;
@@ -33,20 +35,35 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private void authenticate(String token) {
         try {
-            jwtService.extractUserId(token)
-                    .map(userDetailsService::loadUserById)
-                    .or(() -> jwtService.extractUsername(token).map(userDetailsService::loadUserByUsername))
-                    .ifPresent(userDetails -> {
-                        UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                                userDetails,
-                                null,
-                                userDetails.getAuthorities()
-                        );
-                        SecurityContextHolder.getContext().setAuthentication(authentication);
-                    });
-        } catch (UsernameNotFoundException e) {
+            java.util.Optional<UserDetails> user = loadUser(token);
+            if (user.isEmpty()) {
+                log.warn("JWT authentication did not create a principal: {}", jwtService.rejectionReason(token));
+                return;
+            }
+
+            UserDetails userDetails = user.get();
+            UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                    userDetails,
+                    null,
+                    userDetails.getAuthorities()
+            );
+            SecurityContextHolder.getContext().setAuthentication(authentication);
+        } catch (RuntimeException e) {
+            log.warn("JWT authentication failed: {}", e.getMessage());
             SecurityContextHolder.clearContext();
         }
+    }
+
+    private java.util.Optional<UserDetails> loadUser(String token) {
+        java.util.Optional<Long> userId = jwtService.extractUserId(token);
+        if (userId.isPresent()) {
+            try {
+                return java.util.Optional.of(userDetailsService.loadUserById(userId.get()));
+            } catch (UsernameNotFoundException e) {
+                log.debug("JWT user id {} was not found. Trying token subject.", userId.get());
+            }
+        }
+        return jwtService.extractUsername(token).map(userDetailsService::loadUserByUsername);
     }
 
     private String tokenFromRequest(HttpServletRequest request) {

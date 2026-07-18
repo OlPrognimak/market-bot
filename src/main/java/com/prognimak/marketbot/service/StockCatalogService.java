@@ -2,9 +2,10 @@ package com.prognimak.marketbot.service;
 
 import com.prognimak.marketbot.client.YahooFinanceClient;
 import com.prognimak.marketbot.entity.StockCatalogEntity;
-import com.prognimak.marketbot.model.Quote;
+import com.prognimak.marketbot.model.StockSymbolMetadata;
 import com.prognimak.marketbot.model.WatchlistItem;
 import com.prognimak.marketbot.model.WatchlistPriority;
+import com.prognimak.marketbot.portfolio.service.ProviderSymbolMappingService;
 import com.prognimak.marketbot.repository.StockCatalogRepository;
 import com.prognimak.marketbot.user.model.CatalogItemRequest;
 import com.prognimak.marketbot.user.model.StockCatalogResponse;
@@ -24,6 +25,7 @@ import java.util.Optional;
 public class StockCatalogService {
     private final StockCatalogRepository repository;
     private final YahooFinanceClient yahooFinanceClient;
+    private final ProviderSymbolMappingService providerSymbolMappingService;
 
     @Transactional(readOnly = true)
     public List<StockCatalogResponse> list() {
@@ -43,8 +45,10 @@ public class StockCatalogService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Stock symbol already exists");
         }
         StockCatalogEntity entity = new StockCatalogEntity();
-        apply(entity, request);
-        return toResponse(repository.save(entity));
+        applyEnriched(entity, request);
+        StockCatalogEntity saved = repository.save(entity);
+        ensureProviderMappings(saved);
+        return toResponse(saved);
     }
 
     @Transactional
@@ -57,8 +61,10 @@ public class StockCatalogService {
                 .ifPresent(existing -> {
                     throw new ResponseStatusException(HttpStatus.CONFLICT, "Stock symbol already exists");
                 });
-        apply(entity, request);
-        return toResponse(repository.save(entity));
+        applyEnriched(entity, request);
+        StockCatalogEntity saved = repository.save(entity);
+        ensureProviderMappings(saved);
+        return toResponse(saved);
     }
 
     @Transactional
@@ -71,16 +77,28 @@ public class StockCatalogService {
         String normalized = normalize(symbol);
         Optional<StockCatalogEntity> existing = repository.findBySymbolIgnoreCase(normalized);
         if (existing.isPresent()) {
-            return existing.get();
+            StockCatalogEntity entity = existing.get();
+            if (!entity.isEnabled()) {
+                entity.setEnabled(true);
+                entity = repository.save(entity);
+            }
+            ensureProviderMappings(entity);
+            return entity;
         }
 
-        Quote quote = yahooFinanceClient.getQuote(normalized);
+        StockSymbolMetadata metadata = yahooFinanceClient.getStockMetadata(normalized);
         StockCatalogEntity entity = new StockCatalogEntity();
-        entity.setSymbol(normalize(quote.symbol()));
-        entity.setName(nameFallback == null || nameFallback.isBlank() ? entity.getSymbol() : nameFallback.trim());
+        entity.setSymbol(normalize(metadata.symbol()));
+        entity.setName(firstNonBlank(metadata.name(), nameFallback, entity.getSymbol()));
+        entity.setRegion(metadata.region());
+        entity.setSector(metadata.sector());
+        entity.setExchange(metadata.exchange());
+        entity.setCurrency(metadata.currency());
         entity.setEnabled(true);
         entity.setPriority(WatchlistPriority.NORMAL);
-        return repository.save(entity);
+        StockCatalogEntity saved = repository.save(entity);
+        ensureProviderMappings(saved);
+        return saved;
     }
 
     @Transactional
@@ -99,15 +117,20 @@ public class StockCatalogService {
         }));
     }
 
-    private void apply(StockCatalogEntity entity, CatalogItemRequest request) {
-        entity.setSymbol(normalize(request.symbol()));
-        entity.setName(request.name().trim());
-        entity.setRegion(trimToNull(request.region()));
-        entity.setSector(trimToNull(request.sector()));
-        entity.setExchange(trimToNull(request.exchange()));
-        entity.setCurrency(trimToNull(request.currency()));
+    private void applyEnriched(StockCatalogEntity entity, CatalogItemRequest request) {
+        StockSymbolMetadata metadata = yahooFinanceClient.getStockMetadata(normalize(request.symbol()));
+        entity.setSymbol(normalize(metadata.symbol()));
+        entity.setName(firstNonBlank(request.name(), metadata.name(), entity.getSymbol()));
+        entity.setRegion(firstNonBlank(request.region(), metadata.region()));
+        entity.setSector(firstNonBlank(request.sector(), metadata.sector()));
+        entity.setExchange(firstNonBlank(request.exchange(), metadata.exchange()));
+        entity.setCurrency(firstNonBlank(request.currency(), metadata.currency()));
         entity.setEnabled(request.enabled() == null || request.enabled());
         entity.setPriority(priority(request.priority()));
+    }
+
+    private void ensureProviderMappings(StockCatalogEntity entity) {
+        providerSymbolMappingService.ensureTickerMappingsForStock(entity.getSymbol(), entity.getName(), entity.getCurrency());
     }
 
     private WatchlistItem toWatchlistItem(StockCatalogEntity entity) {
@@ -131,7 +154,12 @@ public class StockCatalogService {
         return symbol.trim().toUpperCase(Locale.ROOT);
     }
 
-    private String trimToNull(String value) {
-        return value == null || value.isBlank() ? null : value.trim();
+    private String firstNonBlank(String... values) {
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value.trim();
+            }
+        }
+        return null;
     }
 }

@@ -51,6 +51,19 @@ public class ProviderSymbolMappingService {
     }
 
     @Transactional
+    public void ensureTickerMappingsForStock(String marketSymbol, String instrumentName, String currency) {
+        String normalizedMarketSymbol = normalize(marketSymbol);
+        LinkedHashSet<String> sourceSymbols = new LinkedHashSet<>();
+        sourceSymbols.add(baseTicker(normalizedMarketSymbol));
+        sourceSymbols.add(normalizedMarketSymbol);
+        for (String sourceSymbol : sourceSymbols) {
+            ensureTickerMapping(PortfolioProviderType.REVOLUT, sourceSymbol, normalizedMarketSymbol, instrumentName, currency);
+            ensureTickerMapping(PortfolioProviderType.TRADE_REPUBLIC, sourceSymbol, normalizedMarketSymbol, instrumentName, currency);
+        }
+        refreshCache();
+    }
+
+    @Transactional
     public ProviderSymbolMappingResponse update(Long id, ProviderSymbolMappingRequest request) {
         ProviderSymbolMappingEntity entity = repository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Mapping not found"));
@@ -139,6 +152,35 @@ public class ProviderSymbolMappingService {
                 repository.save(entity);
             }
         });
+    }
+
+    private void ensureTickerMapping(
+            PortfolioProviderType providerType,
+            String sourceSymbol,
+            String marketSymbol,
+            String instrumentName,
+            String currency
+    ) {
+        ProviderSymbolMappingEntity entity = repository
+                .findByProviderTypeAndSourceSymbolIgnoreCaseAndMarketProviderIgnoreCase(
+                        providerType, sourceSymbol, DEFAULT_MARKET_PROVIDER)
+                .orElseGet(ProviderSymbolMappingEntity::new);
+        if (entity.getId() != null && entity.getMarketSymbol() != null && !normalize(entity.getMarketSymbol()).equals(marketSymbol)) {
+            return;
+        }
+        entity.setProviderType(providerType);
+        entity.setSourceSymbol(sourceSymbol);
+        entity.setSourceSymbolType("TICKER");
+        entity.setMarketProvider(DEFAULT_MARKET_PROVIDER);
+        entity.setMarketSymbol(marketSymbol);
+        entity.setInstrumentName(blankToNull(instrumentName));
+        entity.setCurrency(blankToNull(currency));
+        entity.setEnabled(true);
+        entity.setVerified(true);
+        if (entity.getPriority() <= 0) {
+            entity.setPriority(100);
+        }
+        repository.save(entity);
     }
 
     private List<DefaultMapping> defaultMappings() {

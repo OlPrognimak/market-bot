@@ -68,6 +68,40 @@ public class JwtService {
                 });
     }
 
+    public String rejectionReason(String token) {
+        if (token == null || token.isBlank()) {
+            return "missing token";
+        }
+
+        try {
+            String[] parts = token.split("\\.");
+            if (parts.length != 3) {
+                return "malformed token";
+            }
+
+            String unsignedToken = parts[0] + "." + parts[1];
+            if (!constantTimeEquals(sign(unsignedToken), parts[2])) {
+                return "invalid token signature";
+            }
+
+            Map<String, Object> payload = objectMapper.readValue(base64UrlDecode(parts[1]), MAP_TYPE);
+            Number expiresAt = (Number) payload.get("exp");
+            if (expiresAt == null) {
+                return "missing token expiration";
+            }
+            if (Instant.now().getEpochSecond() >= expiresAt.longValue()) {
+                return "expired token";
+            }
+            if (!(payload.get("sub") instanceof String username) || username.isBlank()) {
+                return "missing token subject";
+            }
+
+            return "token payload accepted but no user was authenticated";
+        } catch (Exception e) {
+            return "invalid token payload";
+        }
+    }
+
     private Optional<Map<String, Object>> extractPayload(String token) {
         try {
             String[] parts = token.split("\\.");

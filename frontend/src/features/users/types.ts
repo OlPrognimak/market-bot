@@ -60,6 +60,7 @@ export type SymbolValidationResult = {
   symbol: string;
   valid: boolean;
   message?: string | null;
+  name?: string | null;
 };
 
 export type StockCatalogItem = {
