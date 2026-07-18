@@ -26,18 +26,22 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static com.prognimak.marketbot.user.model.UserPropertyType.CRYPTO_COIN;
+import static com.prognimak.marketbot.user.model.UserPropertyType.WATCHLIST;
+
 @Service
 @RequiredArgsConstructor
 public class UserManagementService {
     private static final Set<com.prognimak.marketbot.user.model.UserPropertyType> REPLACED_PROPERTY_TYPES = EnumSet.of(
-            com.prognimak.marketbot.user.model.UserPropertyType.WATCHLIST,
-            com.prognimak.marketbot.user.model.UserPropertyType.CRYPTO_COIN
+            WATCHLIST,
+            CRYPTO_COIN
     );
 
     private final AppUserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final UserMapper userMapper;
     private final ApplicationEventPublisher eventPublisher;
+    private final com.prognimak.marketbot.service.SymbolValidationService symbolValidationService;
 
     @Transactional(readOnly = true)
     public List<UserResponse> list() {
@@ -217,30 +221,28 @@ public class UserManagementService {
                 .filter(property -> property.propertyType() != null)
                 .filter(property -> seen.add(property.propertyType().name() + "\n" + property.propertyName().trim().toLowerCase()))
                 .forEach(property -> {
-                    AppUserPropertyEntity entity = resolveProperty(user, property, existingById, existingByKey);
+                    AppUserPropertyEntity existing = findExistingProperty(property, existingById, existingByKey);
+                    validateSymbolProperty(property, existing);
+                    AppUserPropertyEntity entity = existing == null ? createProperty(user) : existing;
                     applyProperty(entity, property);
                 });
 
         user.getProperties().removeIf(property ->
                 REPLACED_PROPERTY_TYPES.contains(property.getPropertyType())
                         && !seen.contains(propertyKey(property))
-        );
+                );
     }
 
-    private AppUserPropertyEntity resolveProperty(
-            AppUserEntity user,
+    private AppUserPropertyEntity findExistingProperty(
             UserPropertyRequest property,
             Map<Long, AppUserPropertyEntity> existingById,
             Map<String, AppUserPropertyEntity> existingByKey
     ) {
         AppUserPropertyEntity entity = property.id() == null ? null : existingById.get(property.id());
-        if (entity == null) {
-            entity = existingByKey.get(propertyKey(property));
-        }
-        if (entity != null) {
-            return entity;
-        }
+        return entity == null ? existingByKey.get(propertyKey(property)) : entity;
+    }
 
+    private AppUserPropertyEntity createProperty(AppUserEntity user) {
         AppUserPropertyEntity newEntity = new AppUserPropertyEntity();
         newEntity.setUser(user);
         user.getProperties().add(newEntity);
@@ -254,6 +256,44 @@ public class UserManagementService {
         entity.setEnabled(property.enabled() == null || property.enabled());
         entity.setDescription(trimToNull(property.description()));
         entity.setPropertyValueType(property.propertyValueType() == null ? UserPropertyValueType.TEXT : property.propertyValueType());
+    }
+
+    private void validateSymbolProperty(UserPropertyRequest property, AppUserPropertyEntity existing) {
+        if (property.enabled() != null && !property.enabled()) {
+            return;
+        }
+        if (!requiresSymbolValidation(property, existing)) {
+            return;
+        }
+        if (property.propertyType() == WATCHLIST) {
+            var result = symbolValidationService.validateStock(property.propertyName());
+            if (!result.valid()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, result.message());
+            }
+        }
+        if (property.propertyType() == CRYPTO_COIN) {
+            var result = symbolValidationService.validateCrypto(property.propertyName());
+            if (!result.valid()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, result.message());
+            }
+        }
+    }
+
+    private boolean requiresSymbolValidation(UserPropertyRequest property, AppUserPropertyEntity existing) {
+        if (property.propertyType() != WATCHLIST
+                && property.propertyType() != CRYPTO_COIN) {
+            return false;
+        }
+        if (existing == null) {
+            return true;
+        }
+        if (existing.getPropertyType() != property.propertyType()) {
+            return true;
+        }
+        if (!existing.isEnabled()) {
+            return true;
+        }
+        return !existing.getPropertyName().trim().equalsIgnoreCase(property.propertyName().trim());
     }
 
     private String propertyKey(AppUserPropertyEntity property) {

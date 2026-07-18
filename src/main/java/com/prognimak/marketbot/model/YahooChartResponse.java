@@ -26,10 +26,24 @@ public record YahooChartResponse(Chart chart) {
             String exchangeName,
             String exchangeTimezoneName,
             Integer gmtoffset,
-            TradingPeriods currentTradingPeriod
+            TradingPeriods currentTradingPeriod,
+            String currency,
+            String exchange,
+            String fullExchangeName,
+            String instrumentType,
+            String shortName,
+            String longName
     ) {
         public Meta(String symbol, Double regularMarketPrice, Double previousClose, Double chartPreviousClose) {
-            this(symbol, regularMarketPrice, previousClose, chartPreviousClose, null, null, null, null, null);
+            this(symbol, regularMarketPrice, previousClose, chartPreviousClose, null, null, null, null, null,
+                    null, null, null, null, null, null);
+        }
+
+        public Meta(String symbol, Double regularMarketPrice, Double previousClose, Double chartPreviousClose,
+                    Long regularMarketTime, String exchangeName, String exchangeTimezoneName, Integer gmtoffset,
+                    TradingPeriods currentTradingPeriod) {
+            this(symbol, regularMarketPrice, previousClose, chartPreviousClose, regularMarketTime, exchangeName,
+                    exchangeTimezoneName, gmtoffset, currentTradingPeriod, null, null, null, null, null, null);
         }
     }
 

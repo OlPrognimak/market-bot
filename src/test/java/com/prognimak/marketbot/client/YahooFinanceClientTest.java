@@ -2,6 +2,7 @@ package com.prognimak.marketbot.client;
 
 import com.prognimak.marketbot.model.Quote;
 import com.prognimak.marketbot.model.MarketSession;
+import com.prognimak.marketbot.model.StockSymbolMetadata;
 import com.prognimak.marketbot.model.YahooChartResponse;
 import com.prognimak.marketbot.model.YahooSessionQuote;
 import org.junit.jupiter.api.Test;
@@ -220,6 +221,24 @@ class YahooFinanceClientTest {
                 () -> assertEquals(205.0, quote.baselinePrice()),
                 () -> assertEquals(0.49, quote.changePercent()),
                 () -> assertEquals(2_000.0, quote.volume())
+        );
+    }
+
+    @Test
+    void mapStockMetadataUsesYahooMetaFields() {
+        YahooChartResponse.Meta meta = new YahooChartResponse.Meta(
+                "AAPL", 201.0, 200.0, 200.0, null, "NMS", "America/New_York", -14_400, null,
+                "USD", "NMS", "NasdaqGS", "EQUITY", "Apple Inc.", "Apple Inc."
+        );
+
+        StockSymbolMetadata metadata = client.mapStockMetadata("AAPL", meta);
+
+        assertAll(
+                () -> assertEquals("AAPL", metadata.symbol()),
+                () -> assertEquals("Apple Inc.", metadata.name()),
+                () -> assertEquals("US", metadata.region()),
+                () -> assertEquals("NasdaqGS", metadata.exchange()),
+                () -> assertEquals("USD", metadata.currency())
         );
     }
 

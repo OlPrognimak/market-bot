@@ -5,7 +5,7 @@ import jakarta.validation.constraints.Size;
 
 public record CatalogItemRequest(
         @NotBlank @Size(max = 40) String symbol,
-        @NotBlank @Size(max = 160) String name,
+        @Size(max = 160) String name,
         @Size(max = 80) String region,
         @Size(max = 120) String sector,
         @Size(max = 80) String exchange,

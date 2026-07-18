@@ -18,8 +18,8 @@ public class SymbolValidationService {
         }
 
         try {
-            stockCatalogService.ensureProviderSymbol(normalizedSymbol, normalizedSymbol);
-            return SymbolValidationResult.valid(normalizedSymbol);
+            var entity = stockCatalogService.ensureProviderSymbol(normalizedSymbol, normalizedSymbol);
+            return SymbolValidationResult.valid(entity.getSymbol(), entity.getName());
         } catch (Exception e) {
             return SymbolValidationResult.invalid(normalizedSymbol, "Share symbol was not found by Yahoo Finance");
         }
@@ -33,7 +33,7 @@ public class SymbolValidationService {
 
         try {
             cryptoCoinCatalogService.ensureProviderSymbol(normalizedSymbol, normalizedSymbol);
-            return SymbolValidationResult.valid(normalizedSymbol);
+            return SymbolValidationResult.valid(normalizedSymbol, normalizedSymbol);
         } catch (Exception e) {
             return SymbolValidationResult.invalid(normalizedSymbol, "Crypto coin was not found as active USDT spot pair on Binance");
         }
@@ -46,14 +46,15 @@ public class SymbolValidationService {
     public record SymbolValidationResult(
             String symbol,
             boolean valid,
-            String message
+            String message,
+            String name
     ) {
-        static SymbolValidationResult valid(String symbol) {
-            return new SymbolValidationResult(symbol, true, null);
+        static SymbolValidationResult valid(String symbol, String name) {
+            return new SymbolValidationResult(symbol, true, null, name);
         }
 
         static SymbolValidationResult invalid(String symbol, String message) {
-            return new SymbolValidationResult(symbol, false, message);
+            return new SymbolValidationResult(symbol, false, message, null);
         }
     }
 }

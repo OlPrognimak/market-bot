@@ -235,10 +235,22 @@ export async function authFetch(token: string, path: string, init: RequestInit =
 
   if (!response.ok) {
     const message = await response.text();
+    const proxy = response.headers.get("x-market-bot-proxy");
+    const proxyAuth = response.headers.get("x-market-bot-proxy-auth");
+    const proxyInfo = proxy || proxyAuth
+      ? ` Proxy: ${proxy ?? "unknown"}, auth: ${proxyAuth ?? "unknown"}.`
+      : "";
+    console.warn("Market Bot authenticated request failed", {
+      path,
+      status: response.status,
+      proxy: proxy ?? "missing",
+      proxyAuth: proxyAuth ?? "missing",
+      token: token.trim() ? "present" : "missing"
+    });
     if (response.status === 401 || response.status === 403) {
-      throw new Error(message || "Session expired or access denied. Please log out and sign in again.");
+      throw new Error(`${message || "Session expired or access denied. Please log out and sign in again."}${proxyInfo}`);
     }
-    throw new Error(message || `Request failed with ${response.status}`);
+    throw new Error(`${message || `Request failed with ${response.status}`}${proxyInfo}`);
   }
 
   return response;

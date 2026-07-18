@@ -31,7 +31,8 @@ public class NotificationRouter {
                     telegramClient.sendMessage(settings.telegramBotToken(), settings.telegramChatId(), messageText);
                     sent = true;
                 } catch (Exception e) {
-                    log.warn("Telegram send failed for user {}: {}", userId, e.getMessage(), e);
+                    log.warn("Telegram send failed for user {}: {}", userId, e.getMessage());
+                    log.debug("Telegram send failure for user {}", userId, e);
                 }
             }
         }

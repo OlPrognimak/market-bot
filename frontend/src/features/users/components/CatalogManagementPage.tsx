@@ -293,7 +293,7 @@ export function CatalogManagementPage({ token }: Props) {
         </label>
         <label>
           Name
-          <input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required />
+          <input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required={catalogType === "crypto"} />
         </label>
         {catalogType === "stocks" ? (
           <>
@@ -317,7 +317,7 @@ export function CatalogManagementPage({ token }: Props) {
         </label>
         {error ? <div className="error-banner">{error}</div> : null}
         <div className="form-actions">
-          <button type="submit" disabled={busy || !form.symbol || !form.name}>{busy ? "Saving" : form.id ? "Update" : "Create"}</button>
+          <button type="submit" disabled={busy || !form.symbol || (catalogType === "crypto" && !form.name)}>{busy ? "Saving" : form.id ? "Update" : "Create"}</button>
           {form.id ? <button type="button" className="danger-button" onClick={remove} disabled={busy}>Delete</button> : null}
           <button type="button" className="secondary-button" onClick={() => setForm(emptyForm)}>New</button>
         </div>

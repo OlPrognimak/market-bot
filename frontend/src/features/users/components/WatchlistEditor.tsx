@@ -208,6 +208,12 @@ export function WatchlistEditor({
     try {
       const result = await validateWatchlistSymbol(token, catalogType, normalizedSymbol);
       if (result.valid) {
+        updateWatchlistRow(index, {
+          propertyName: normalizeSymbol(result.symbol || normalizedSymbol),
+          propertyValue: result.name && (!rows[index]?.propertyValue || normalizeSymbol(rows[index].propertyValue) === normalizedSymbol)
+            ? result.name
+            : rows[index]?.propertyValue ?? result.name ?? normalizedSymbol
+        }, setRows);
         clearValidationError(index);
       } else {
         setValidationErrors((current) => ({ ...current, [index]: result.message || `${normalizedSymbol} was not found` }));
