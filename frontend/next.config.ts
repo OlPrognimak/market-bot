@@ -7,6 +7,7 @@ const allowedDevOrigins = (process.env.MARKET_BOT_ALLOWED_DEV_ORIGINS ?? "")
   .filter(Boolean);
 
 const nextConfig: NextConfig = {
+  output: "standalone",
   allowedDevOrigins,
   async rewrites() {
     return [
