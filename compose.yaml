@@ -38,3 +38,18 @@ services:
       MARKET_BOT_LOG_MAX_HISTORY: ${MARKET_BOT_LOG_MAX_HISTORY:-14}
       MARKET_BOT_LOG_TOTAL_SIZE_CAP: ${MARKET_BOT_LOG_TOTAL_SIZE_CAP:-200MB}
       SPRING_DOCKER_COMPOSE_ENABLED: "false"
+
+  market-bot-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        MARKET_BOT_BACKEND_URL: ${MARKET_BOT_FRONTEND_BACKEND_URL:-http://market-bot:8080}
+    image: market-bot-frontend:${MARKET_BOT_FRONTEND_IMAGE_TAG:-0.0.1-SNAPSHOT}
+    restart: unless-stopped
+    depends_on:
+      - market-bot
+    ports:
+      - "${MARKET_BOT_FRONTEND_PORT:-8088}:8088"
+    environment:
+      MARKET_BOT_BACKEND_URL: ${MARKET_BOT_FRONTEND_BACKEND_URL:-http://market-bot:8080}

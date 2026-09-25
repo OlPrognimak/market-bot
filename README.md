@@ -43,8 +43,9 @@ The current IBKR implementation supports explicit connection checks to TWS / IB 
 
 - Backend API: `http://localhost:8080`
 - Frontend dev server: React/Next.js on `http://localhost:3000`
+- Docker frontend: Next.js production server on `http://localhost:8088`
 - PostgreSQL default used by local config: `localhost:5455/test_db`
-- Docker image exposes the backend on `${MARKET_BOT_PORT:-8080}`.
+- Docker exposes the backend on `${MARKET_BOT_PORT:-8080}` and the frontend on `${MARKET_BOT_FRONTEND_PORT:-8088}`.
 
 The frontend talks to the backend through `NEXT_PUBLIC_MARKET_BOT_API_URL`. In local frontend development use:
 
@@ -82,6 +83,14 @@ Manual Compose flow:
 ./mvnw clean package
 docker compose --env-file .env up --build -d
 ```
+
+Open the Docker frontend at:
+
+```text
+http://localhost:8088
+```
+
+The Docker frontend proxies backend requests to the Compose service name `http://market-bot:8080` by default. Override it only for unusual deployments with `MARKET_BOT_FRONTEND_BACKEND_URL`; do not use `localhost` for this value inside Compose.
 
 Maven `docker` profile flow:
 
